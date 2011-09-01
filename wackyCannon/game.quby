@@ -1,0 +1,1322 @@
+/**
+ * Cannon
+ * @sharfah 28/8/2011
+ */
+
+$SCREEN_HEIGHT = getScreenHeight()
+$SCREEN_WIDTH = getScreenWidth()
+$DEBUG=false
+$CHEAT=false
+
+// Game state transition:
+// TITLE -> NEW_GAME -> IN_GAME -> GAME_OVER
+$GAME_STATE=:TITLE
+game = new Game()
+onEachFrame() do
+    if $GAME_STATE==:GAME_OVER
+         game.drawGameOver()
+    else if $GAME_STATE==:IN_GAME
+        game.draw()        
+    else if $GAME_STATE==:NEW_GAME
+         game = new Game()
+         $GAME_STATE=:IN_GAME
+    else
+        game.drawTitle()
+    end
+end
+
+///////////////////////////////////////////////////
+class Game
+
+    def new()
+        @builder = new LevelBuilder()
+        @builder.buildLevels()
+        @levels = @builder.getLevels()
+        
+        @currentLevelIdx=0
+        @scene = new FieldScene(40)
+        @ground = new Ground(40)
+        @cannon=new Cannon(50,$SCREEN_HEIGHT-@ground.getHeight()-24)
+    end
+    
+    def draw()
+        if @currentLevelIdx >= @levels.size()
+            $GAME_STATE=:GAME_OVER
+        else
+            currentLevel = @levels[@currentLevelIdx]
+            currentLevel.draw()
+
+            setColor(0,0,0)
+            setFont('Arial', 12)
+            fillText("Level "+(@currentLevelIdx+1) +"\nBombs Remaining: "+currentLevel.getRemainingBalls(), 10,10)
+            
+            if(currentLevel.isComplete() && @currentLevelIdx != @levels.size()-1)
+               drawContinueDialog(@currentLevelIdx+1)
+            else if currentLevel.isFailed()
+               drawRetryDialog(@currentLevelIdx+1)
+            else if (currentLevel.isComplete() && @currentLevelIdx == @levels.size()-1)
+                $GAME_STATE=:GAME_OVER
+            end
+            
+            
+            if getControls().isKeyPressed(:d)
+	        $DEBUG=!$DEBUG
+	    else if getControls().isKeyPressed(:c)
+                $CHEAT=!$CHEAT
+            else if getControls().isKeyPressed(:r)
+                currentLevel.reset()
+            else if getControls().isKeyPressed(:n)
+               @currentLevelIdx=@currentLevelIdx+1   
+            end
+            
+            if $DEBUG
+                new Grid().draw()
+            end
+            
+        end
+    end
+    
+    def drawContinueDialog(i)
+        d = new Dialog()
+        d.draw("Level "+i+" Complete", "","CONTINUE>>>",false)
+        if d.isOk()
+            @currentLevelIdx=@currentLevelIdx+1
+        end
+    end
+    
+    def drawRetryDialog(i)
+        d = new Dialog()
+        d.draw("Level "+i+" Failed", "","<<<RETRY",true)
+        if d.isOk()
+            @levels[@currentLevelIdx].reset()
+        end        
+    end
+    
+    
+    def drawGameOver()
+        @scene.draw()
+        @ground.draw()
+        @cannon.draw()
+        setFont( 'Arial', 40 )
+        size=45
+        setColor(0,0,128)
+        fillText("You Won!",7*size,2*size)
+        setColor(34,139,34)
+        setFont('Arial', 20)
+        fillText("You completed all "+ @levels.size() +" levels.", 7*size,2*size+50)
+        setColor(255,0,0)
+        setFont('Arial', 20, 'bold')
+        fillText("Click to Play Again", 7*size, 6*size)
+         
+        controls = getControls()
+        if controls.isLeftClick()
+           $GAME_STATE=:TITLE
+        end        
+     end
+    
+    def drawTitle()
+        
+        @scene.draw()
+        @ground.draw()
+        @cannon.draw()
+        
+        setFont( 'Arial', 50 )
+        
+        size=45
+        
+        setColor(0,0,128)
+        fillText("WACKY",7*size,2*size)
+        fillText("CANNON",7*size,2*size+55)
+    
+        setColor(34,139,34)
+        setFont( 'Arial', 15, 'bold' )
+        fillText("Use your mouse to control the cannon",7*size,5*size)
+        fillText("and shoot the targets!",7*size,5*size+20)
+    
+        setColor(255,0,0)
+        setFont( 'Arial', 20, 'bold' )
+        fillText("Click to Start",7*size,6*size+20)
+      
+        controls = getControls()
+        if controls.isLeftClick()
+           $GAME_STATE=:NEW_GAME
+        end   
+
+    end
+
+
+end
+
+//////////////////////////////
+class Grid
+    def draw()
+        x=0
+        setColor(0,0,255)
+        setFont('Arial',10)
+        50.times() do |i|
+            drawLine(x,0,x,$SCREEN_HEIGHT)
+            fillText(x,x,5)
+            x=x+50
+        end
+        y=0
+        50.times() do |i|
+            drawLine(0,y,$SCREEN_WIDTH,y)
+            fillText(y,5,y)
+            y=y+50
+        end        
+        
+    end
+end
+
+///////////////////
+class Barrier
+    def hit(ball)
+    end
+end
+///////////////////
+class Ground < Barrier
+    def new(height)
+        @groundHeight=height
+        @y=$SCREEN_HEIGHT-@groundHeight
+    end
+    
+    def draw()
+        //ground
+        setColor(0,0,0)
+        fillRect(0,@y,$SCREEN_WIDTH,@groundHeight)
+        setColor(154,205,50)
+        fillRect(0,@y+2,$SCREEN_WIDTH,@groundHeight-2)
+    end 
+    
+    def getHeight()
+        return @groundHeight
+    end
+    
+    def hit(ball)
+        groundHit=false
+        if ball.isValid()
+		if ball.getY()+ball.getDiameter()/2 >= @y
+		    ball.setExploding(ball.getX(), @y-ball.getDiameter()/2)
+		    groundHit=true
+		else
+		    next=ball.getNextPoint()
+		    if next.getY()+ball.getDiameter()/2 >= @y
+			ball.setExploding(next.getX(), @y-ball.getDiameter()/2)
+			groundHit=true
+		    end
+		end        
+        end
+        
+    end
+end
+
+///////////////////
+class Sun
+    def new(centreX, centreY)
+        @x=centreX
+        @y=centreY
+    end
+    
+    def draw()
+        //sun
+        setColor(255,215,0)
+        fillCircle(@x,@y, 70, true)
+        setColor(255,255,255,0.5)
+        fillCircle(@x,@y, 67, true)
+        setColor(255,215,0,0.5)
+        fillCircle(@x,@y, 35, true)    
+    end
+end
+///////////////////////
+
+class Cloud
+    def new(x,y,d)
+        @x=x
+        @y=y
+        @d=d
+    end
+
+    def draw()
+        setColor(224,255,255)
+        fillCircle(@x,@y,@d,true)
+        fillCircle(@x+@d/2+5,@y,@d,true)
+        fillCircle(@x,@y+@d/2,@d,true)
+        fillCircle(@x+@d/2+12,@y+@d/2,@d,true)
+        fillCircle(@x+@d+13,@y+@d/4,@d,true)
+        fillCircle(@x-@d/2,@y+@d/4,@d,true)      
+        move()
+    end
+    
+    
+    def move()
+        @x=@x+0.2
+        if (@x-@d >= $SCREEN_WIDTH)
+           @x=0-@d-13-@d/2
+        end
+    end
+
+end
+////////////////////////
+
+
+class FieldScene
+    def new(gh)
+        @sun = new Sun($SCREEN_WIDTH-50, 50)
+        @clouds=[]
+        @clouds.push(new Cloud(60,60,35))
+        @clouds.push(new Cloud(200,35,30))
+        @clouds.push(new Cloud(350,100,45))
+        @groundHeight=gh
+    end
+
+    def drawMountains()
+        setColor(107,142,35)
+        points=[$SCREEN_WIDTH,250, 300,$SCREEN_HEIGHT-@groundHeight, $SCREEN_WIDTH,$SCREEN_HEIGHT-@groundHeight]
+        fillPolygon(points)
+        points=[0,150, 550,$SCREEN_HEIGHT-@groundHeight,0,$SCREEN_HEIGHT-@groundHeight]
+        setColor(107,142,35,0.7)
+        fillPolygon(points)
+    end    
+
+    def draw()
+        fill(173,216,230)
+        @sun.draw()
+        @clouds.each() do |c|
+           c.draw()
+        end
+        drawMountains()
+    end
+end
+
+////////////////////////
+class SnowScene
+    def new()
+        @snowD=5
+        @snowX=[]
+        @snowY=[]
+        100.times() do |i|
+            @snowX.push(rand(0, $SCREEN_WIDTH-@snowD))
+            @snowY.push(rand(0, $SCREEN_HEIGHT-@snowD))
+        end         
+    end
+    
+    def drawSnow()
+        setColor(255,250,250)
+        @snowX.size().times() do |i|
+            fillCircle(@snowX[i], @snowY[i],@snowD)
+            @snowY[i]=@snowY[i]+1
+            if @snowY[i]>=$SCREEN_HEIGHT
+                @snowY[i]=0
+                @snowX[i]=rand(0, $SCREEN_WIDTH-@snowD)
+            end
+        end
+    end
+    
+    def draw()
+        fill(135,206,250)
+        setColor(95,158,160)
+        fillRect(0,$SCREEN_HEIGHT-40,$SCREEN_WIDTH,40)
+        drawSnow()
+    end
+end
+
+///////////////////////////////
+class Wall < Barrier
+
+    def new(x,y,numBricks)
+        @brickHeight=15
+        @brickWidth=30
+        @x=x
+        @y=y+@brickHeight
+        @numBricks=numBricks+1
+        @wallHeight=@numBricks*@brickHeight
+    end
+
+    def draw()
+        setColor(0,0,0)
+        fillRect(@x,@y-@wallHeight,@brickWidth,@wallHeight)
+        setColor(178,34,34)
+        fillRect(@x+2,@y-@wallHeight+2,@brickWidth-4,@wallHeight-4)
+        
+        setColor(0,0,0)
+        i=@y-@wallHeight
+        @numBricks.times() do |j|
+            
+            
+            
+            if j %2==0
+            drawRect(@x,i,@brickWidth/2,@brickHeight)
+            drawRect(@x+@brickWidth/2,i,@brickWidth/2,@brickHeight)
+            else
+            drawRect(@x,i,@brickWidth,@brickHeight)
+            end
+            
+            i=i+@brickHeight
+        end
+    end
+    
+    def hit(ball)
+       if(ball.isValid())
+          bx=ball.getX()
+          by=ball.getY()
+          bd=ball.getDiameter()
+       
+          if bx+bd/2>=@x && bx-bd/2<=@x+@brickWidth && by+bd/2>=@y-@wallHeight
+              ball.setExploding(bx,by)           
+          end
+       end
+    end
+end
+///////////////////////////////
+class Tree < Barrier
+    def new(x,y,trunkWidth,trunkHeight,treeDiameter,offset)
+        @x=x
+        @y=y+15
+        @trunkWidth=trunkWidth
+        @trunkHeight=trunkHeight
+        @treeDiameter=treeDiameter
+        
+        @trunkX=@x-@trunkWidth/2
+        @trunkY=@y-@trunkHeight
+        @treeX=@x
+        @treeY=@y-@trunkHeight-offset
+        
+    end
+    
+    def draw()
+        setColor(0,0,0)
+        fillRect(@trunkX,@trunkY,@trunkWidth,@trunkHeight)
+        setColor(222,184,135)
+        fillRect(@trunkX+2,@trunkY+2,@trunkWidth-4,@trunkHeight-4)
+        
+        
+        setColor(0,0,0)
+        fillCircle(@treeX,@treeY,@treeDiameter,true)
+        setColor(107,142,35)
+        fillCircle(@treeX,@treeY,@treeDiameter-4,true)
+
+    end
+    
+    def hit(ball)
+        if ball.isValid()
+            bx=ball.getX()
+            by=ball.getY()
+            bd=ball.getDiameter()
+            
+            if isCircleOverlap(bx,by,bd,@treeX,@treeY,@treeDiameter,true)
+                ball.setExploding(bx,by)
+            else if bx+bd/2>=@trunkX && bx-bd/2<=@trunkX+@trunkWidth && by+bd/2>=@trunkY
+                ball.setExploding(bx,by)
+            end
+        end
+    end
+    
+
+end
+///////////////////////////////
+class Level
+    def new(numBalls, cannon)
+       @numBalls=numBalls
+       @targets=[]
+       @barriers=[]
+       @cannon=cannon
+       reset()
+    end
+    
+    def setScene(s)
+       @scene=s
+    end
+    
+    def reset()
+       @targets.each() do |t|
+           t.reset()
+       end
+       @numFired=0
+       @cannon.reset()
+       @levelState=:IN_LEVEL
+    end
+    
+    def addBarrier(barrier)
+       @barriers.push(barrier)
+    end
+    
+    def isComplete()
+        return @levelState==:LEVEL_COMPLETE
+    end    
+    
+    def isFailed()
+        return @levelState==:LEVEL_FAILED
+    end
+    
+    def getRemainingBalls()
+        return @numBalls-@numFired
+    end
+    
+    def addTarget(target)
+        @targets.push(target)
+    end
+    
+    def draw()
+        @scene.draw()
+        @barriers.each() do |b|
+            b.draw()
+        end
+       
+        @targets.each() do |t|
+            t.draw()
+        end
+        
+        @cannon.draw()
+        
+        drawBalls()
+        
+        checkLevel()
+        listenForFire()       
+    end
+    
+    def checkTargetHits(ball)
+       @targets.each() do |t|
+           t.hit(ball)
+       end
+    end
+    
+    def drawBalls()
+        balls=@cannon.getBalls()
+        balls.each() do |b|
+             @barriers.each() do |barrier|
+                 barrier.hit(b)
+             end
+             
+             @targets.each() do |target|
+                 target.hit(b)
+             end
+             b.draw()
+        end        
+    end
+    
+    def checkLevel()
+        
+        hasMoreTargets=false
+        @targets.each() do |t|
+            if t.isValid()
+                hasMoreTargets=true        
+            end
+        end
+        
+        if !hasMoreTargets
+             counter=0
+	     @cannon.getBalls().each() do |b|
+	          if !b.isValid()
+	              counter=counter+1
+	           end
+	     end	                    
+             if counter == @cannon.getBalls().size()
+                @levelState=:LEVEL_COMPLETE
+                return true
+             end
+        end
+        
+        if getRemainingBalls()<=0 
+                    counter=0
+                     @cannon.getBalls().each() do |b|
+                         if !b.isValid()
+                             counter=counter+1
+                         end
+                     end
+                    
+                    if counter == @cannon.getBalls().size()
+                        @levelState=:LEVEL_FAILED
+                        return true
+                    end
+        end
+    end      
+    
+    def listenForFire()
+        if getControls().isLeftClick()
+           if getRemainingBalls() > 0
+               @numFired=@numFired+1
+               @cannon.fire()
+           end
+        end
+    end  
+    
+end
+
+//////////////////////////////
+class LevelBuilder
+
+    def new()
+        @levels=[]
+    end
+    
+    def getLevels()
+        return @levels
+    end
+    
+    def buildGreenWorld()
+       groundHeight=40
+       level=new Level( 5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
+       level.setScene(new FieldScene(groundHeight))
+       level.addTarget(new Target(150,$SCREEN_HEIGHT-groundHeight-13,50,15))
+       level.addTarget(new Target(300,$SCREEN_HEIGHT-groundHeight-13,50,15))
+       level.addTarget(new Target(550,$SCREEN_HEIGHT-groundHeight-13,50,15))       
+       level.addBarrier(new Ground(groundHeight))        
+       @levels.push(level)
+       
+
+       level=new Level( 5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
+       level.setScene(new FieldScene(groundHeight))
+       level.addBarrier(new Ground(groundHeight))
+       level.addBarrier(new Wall(150,$SCREEN_HEIGHT-groundHeight,13))
+       level.addBarrier(new Wall(310,$SCREEN_HEIGHT-groundHeight,14))
+       level.addBarrier(new Wall(470,$SCREEN_HEIGHT-groundHeight,13))       
+       level.addTarget(new Target(190,$SCREEN_HEIGHT-groundHeight-13,50,15))
+       level.addTarget(new Target(390,$SCREEN_HEIGHT-groundHeight-13,50,15))
+       level.addTarget(new Target(565,$SCREEN_HEIGHT-groundHeight-13,50,15))              
+       @levels.push(level)
+       
+       
+       level=new Level( 5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
+       level.setScene(new FieldScene(groundHeight))
+       level.addBarrier(new Ground(groundHeight))
+       level.addBarrier(new Tree(300,$SCREEN_HEIGHT-groundHeight,30,200,250,25))
+       level.addTarget(new Target(565,$SCREEN_HEIGHT-groundHeight-13,50,15))              
+       @levels.push(level)
+       
+
+       level=new Level(5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
+       level.setScene(new FieldScene(groundHeight))
+       level.addBarrier(new Ground(groundHeight))
+       level.addBarrier(new Tree(150,$SCREEN_HEIGHT-groundHeight,15,100,100,10))
+       level.addBarrier(new Tree(290,$SCREEN_HEIGHT-groundHeight,20,150,150,15))
+       level.addBarrier(new Tree(490,$SCREEN_HEIGHT-groundHeight,25,200,200,20))
+       level.addTarget(new Target(200,$SCREEN_HEIGHT-groundHeight-13,50,15))      
+       level.addTarget(new Target(400,$SCREEN_HEIGHT-groundHeight-13,50,15))
+       @levels.push(level)
+
+    
+       level=new Level(5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
+       level.setScene(new FieldScene(groundHeight))
+       level.addBarrier(new Ground(groundHeight))
+       level.addBarrier(new Tree(300,$SCREEN_HEIGHT-groundHeight,30,200,250,25))
+       level.addBarrier(new Wall(150,$SCREEN_HEIGHT-groundHeight,8))
+       level.addTarget(new Target(230,$SCREEN_HEIGHT-groundHeight-13,50,15))  
+       @levels.push(level)
+    end
+
+    def buildSnowWorld()
+      
+       snowScene=new SnowScene()
+       level=new Level(6, new Cannon(50,100-25))
+       level.setScene(snowScene)
+       level.addBarrier(new SnowGround(20,100,50))
+       level.addBarrier(new SnowGround(200,200,50))
+       level.addBarrier(new SnowGround(550,50,50))
+       level.addBarrier(new SnowGround(375,125,50))       
+       level.addTarget(new Target(200,200-14,50,15))  
+       level.addTarget(new Target(550,50-14,50,15)) 
+       level.addTarget(new Target(375,125-14,50,15)) 
+       @levels.push(level)
+
+       level=new Level(6, new Cannon(70,250-25))
+       level.setScene(snowScene)
+       level.addBarrier(new SnowGround(118,150,50))
+       level.addBarrier(new SnowGround(-5,250,125))
+       level.addBarrier(new SnowGround(160,300,150))
+       level.addBarrier(new SnowGround(500,50,$SCREEN_WIDTH-450+10))
+       level.addBarrier(new SnowGround(400,150,$SCREEN_WIDTH-400+10))
+       level.addTarget(new Target(160,300-14,50,15)) 
+       level.addTarget(new Target(400,150-14,50,15)) 
+       level.addTarget(new Target(490,50-14,50,15))
+       @levels.push(level) 
+       
+       level=new Level(8, new Cannon($SCREEN_WIDTH/2,300-25))
+       level.setScene(snowScene)
+       level.addBarrier(new SnowGround($SCREEN_WIDTH/2-25,300,50))
+       level.addBarrier(new SnowGround(-5,50,50))
+       level.addTarget(new Target(-5,50-14,50,15)) 
+       level.addBarrier(new SnowGround(125,200,50))
+       level.addTarget(new Target(125,200-14,50,15)) 
+       level.addBarrier(new SnowGround($SCREEN_WIDTH-45,50,50))
+       level.addTarget(new Target($SCREEN_WIDTH-45,50-14,50,15)) 
+       level.addBarrier(new SnowGround(425,150,50))
+       level.addTarget(new Target(425,150-14,50,15)) 
+       @levels.push(level)
+
+       level=new Level(10, new Cannon(550,150-25))
+       level.setScene(snowScene)
+       level.addBarrier(new SnowGround(500,150,100))
+       level.addBarrier(new MovingSnowGround(50,200,50,2,14,$SCREEN_HEIGHT+14))
+       level.addTarget(new MovingTarget(50,200-14,50,15,2))
+       level.addBarrier(new MovingSnowGround(200,100,50,2,14,$SCREEN_HEIGHT+14))
+       level.addTarget(new MovingTarget(200,100-14,50,15,2))
+       level.addBarrier(new MovingSnowGround(350,300,50,2,14,$SCREEN_HEIGHT+14))
+       level.addTarget(new MovingTarget(350,300-14,50,15,2))       
+       @levels.push(level)  
+       
+       level=new Level(5, new Cannon(35,325-25))
+       level.setScene(snowScene)
+       level.addBarrier(new SnowGround(10,325,50))
+       level.addBarrier(new MovingSnowGround(130,200,50,-3))
+       level.addBarrier(new MovingSnowGround(200,125,50,3))
+       level.addBarrier(new MovingSnowGround(270,50,50,-3))
+       level.addBarrier(new MovingSnowGround(340,125,50,-3))
+       level.addBarrier(new MovingSnowGround(410,200,50,3))
+       level.addBarrier(new SnowGround(600,150,50))
+       level.addTarget(new Target(600,150-14,50,15))
+       @levels.push(level)
+       
+    end    
+
+    def buildLevels()
+     
+       
+       buildGreenWorld()
+       buildSnowWorld()
+       
+    end
+
+end
+/////////////////////////////
+class MovingSnowGround < SnowGround
+    def new(x,y,width,speed)
+        super(x,y,width)
+        setMovable(speed)
+    end
+    
+    def new(x,y,width,speed,ymin,ymax)
+        super(x,y,width)
+        setMovable(speed)
+        setRange(ymin,ymax)
+       
+    end
+end
+/////////////////////////////
+class SnowGround < Barrier
+    def new(x,y,width)
+        @x=x
+        @y=y
+        @width=width
+        @height=$SCREEN_HEIGHT-@y
+        @points=[@x-10,@y]
+        i=@x-10
+        ((@width+20)/10).times() do |f|
+           tmp = [i,@y+30,i+5,@y+30+rand(20,50),i+10,@y+30]
+           @points.push(tmp)
+           i=i+10
+        end
+        tmp=[@x+@width+10,@y]
+        @points.push(tmp)
+        @points=@points.flatten()    
+        @move=false
+        @speed=1
+        @ymin=0
+        @ymax=$SCREEN_HEIGHT
+    end
+    
+    def setMovable(speed)
+        @move=true
+        @speed=speed
+    end
+    
+    def setRange(ymin,ymax)
+       @ymin=ymin
+       @ymax=ymax
+    end
+    
+    def draw()  
+        setColor(0,0,0)
+        fillRect(@x,@y,@width,@height)
+        setColor(0,255,255)
+        fillRect(@x+2,@y+2,@width-4,@height-2)
+        setColor(238,233,233)
+        i=@x+5
+	while i < @x+@width
+	   fillRect(i,@y,2,@height)
+	   i=i+5
+	end
+       setColor(238,233,233)
+       fillPolygon(@points) 
+       setColor(0,0,0)
+       drawPolygon(@points)   
+       if @move 
+          move()
+       end
+    end
+    
+    def move()
+        @y=@y+@speed
+        @height=$SCREEN_HEIGHT-@y
+        i=0
+        @points.each() do |p|
+           if i%2==1
+               @points[i]=p+@speed
+           end
+           i=i+1
+        end
+        if @y>@ymax || @y<@ymin
+            @speed=-1*@speed
+        end
+    end  
+    
+    def hit(ball)
+        if ball.isValid()
+            bx=ball.getX()
+            by=ball.getY()
+            bd=ball.getDiameter()
+            
+            if bx+bd/2>=@x && bx-bd/2<=@x+@width && by+bd/2>=@y
+                ball.setExploding(bx,by)
+            end
+        end
+        
+    end
+end
+///////////////////////////////////////////
+class MovingTarget < Target
+    def new (x,y,width, height,speed)
+       super(x,y,width,height)
+       setMovable(speed)
+    end
+end
+//////////////////////////////////////////
+class Target
+    def new(x,y,width, height)
+        @x=x
+        @y=y
+        @width=width
+        @height=height
+        @destroyed=false
+        @valid=true  
+        @moving=false
+        @speed=1
+    end
+    
+    def setMovable(speed)
+       @moving=true
+       @speed=speed
+    end
+    
+    def reset()
+        @destroyed=false
+        @valid=true
+    end
+    
+    def draw()    
+        if @valid
+            setColor(0,0,0)
+	    fillRect(@x,@y,@width,@height)
+	    if @destroyed
+	      setColor(255,0,0)
+	    else
+	      setColor(148,0,211)       
+	    end
+	    fillRect(@x+2,@y+2,@width-4,@height-4)
+	    
+	    if @moving
+	       move()
+	    end
+	end
+    end
+    
+    def move()
+       @y=@y+@speed
+       /*if (@y+@height)> $SCREEN_HEIGHT
+          @speed=-1*@speed
+          @y=$SCREEN_HEIGHT-@height
+       else if @y<0
+          @speed=-1*@speed
+          @y=0
+       end*/
+       
+               if @y> $SCREEN_HEIGHT || @y<0
+                   @speed=-1*@speed
+        end
+    end
+    
+    def isValid()
+        return !@destroyed
+    end
+    
+    def destroy()
+        @destroyed=true
+    end
+    
+    def getX()
+        return @x
+    end
+    
+    def getY()
+        return @y
+    end
+    
+    def getWidth()
+        return @width
+    end
+    
+    def getHeight()
+        return @height
+    end
+    
+    def hit(ball)
+            if isValid() && ball.isValid() && ball.getX()+ball.getDiameter()/2 >= @x && ball.getX()-ball.getDiameter()/2 <= @x+@width
+                if ball.getY()+ball.getDiameter()/2>=@y && ball.getY()-ball.getDiameter()/2<=@y+@height
+                    
+                    ball.setExploding(ball.getX(), ball.getY())
+                    destroy()
+                    return true
+                end
+            end
+            return false        
+    end
+end
+
+
+///////////////////////////////
+
+class Cannon
+    def new(x,y)
+        @circleX=x
+        @circleY=y
+        @circleD=30
+        @rectWidth=@circleD*2
+        @centre=new Point(@circleX, @circleY)
+
+        x1=@circleX
+        y1=@circleY-@circleD/2
+        x2=@circleX
+        y2=@circleY+@circleD/2
+        x3=x2+@rectWidth
+        y3=y2
+        x4=x1+@rectWidth
+        y4=y1
+
+        @cannon=[]
+        @cannon.push(new Point(x1,y1))
+        @cannon.push(new Point(x2,y2))
+        @cannon.push(new Point(x3,y3))
+        @cannon.push(new Point(x4,y4))
+        
+        @arrow=[]
+        addedLength=0
+        @arrow.push(new Point(x4+addedLength,y4+(y3-y4)/2))
+        @arrow.push(new Point((x4+addedLength)-15,y4))
+        @arrow.push(new Point((x4+addedLength)-15,y4+10))
+        @arrow.push(new Point(x1,y1+10))
+        @arrow.push(new Point(x2,y2-10))
+        @arrow.push(new Point((x4+addedLength)-15,y3-10))
+        @arrow.push(new Point((x4+addedLength)-15,y3))
+        
+        @angle=0
+        @velocity=0
+        @fired=false
+        
+        @ballPoint=new Point(x4+addedLength,y4+(y3-y4)/2)
+        
+        @balls=[]
+        
+        @arrowAlpha=0.5
+
+    end
+    
+    def drawArrow()
+        //draw arrow
+        arrowPoints=[]
+        @arrow.each() do |i|
+            rotated=i.rotate(@centre,@angle)
+            arrowPoints.push(rotated.getX())
+            arrowPoints.push(rotated.getY())
+        end
+        setColor(255,0,0,@arrowAlpha)
+        fillPolygon(arrowPoints)   
+    end
+    
+    def drawCannon()
+        //draw cannon
+        setColor(255,255,255)        
+        cannonPoints=[]
+        @cannon.each() do |i|
+            rotated=i.rotate(@centre,@angle)
+            cannonPoints.push(rotated.getX())
+            cannonPoints.push(rotated.getY())
+        end
+        setColor(0,100,0)
+        fillPolygon(cannonPoints)
+        setColor(0,0,0)
+        drawPolygon(cannonPoints)
+
+        //draw cannon holder and base              
+        setColor(0,100,0)
+        fillCircle(@circleX, @circleY, @circleD, true) 
+        setColor(0,0,0)
+        drawCircle(@circleX, @circleY, @circleD, true)      
+                       
+        setColor(139,69,19)
+        fillRect(@circleX-@circleD/2-5, @circleY+@circleD/2,@circleD+10,@circleD/3)
+        setColor(0,0,0)
+        drawRect(@circleX-@circleD/2-5, @circleY+@circleD/2,@circleD+10,@circleD/3)
+        
+        fillCircle(@circleX,@circleY,5,true)        
+    end
+    
+    def setBallPosition()
+        rotated = @ballPoint.rotate(@centre,@angle)
+        if @fired
+            ball = new Ball(rotated.getX(),rotated.getY(),@angle,@velocity)
+            @balls.push(ball)
+            @fired=false
+        else if $CHEAT
+            drawCheatLine(rotated.getX(),rotated.getY())
+        end        
+    end
+    
+    def draw()
+        setColor(255,255,255)
+        
+        drawArrow()
+        drawCannon()
+
+        setBallPosition()        
+        
+        //detect movements
+        move()
+    end
+    
+    def getBalls()
+        return @balls
+    end
+    
+    def changeAngle(dx, dy)
+        
+        //change the angle
+        if dy < 0 
+            if dx>=0
+               @angle=0
+            else
+               @angle=-180.toRadians()
+            end
+        else
+            @angle=-1*(dy/dx.abs()).atan()
+            if dx<0
+                @angle=-180.toRadians()+@angle*-1
+            end
+        end        
+    end
+    
+    def changeVelocity(dx,dy)
+      //change the length of the arrow  
+      distance=(dx.pow(2) + dy.pow(2)).sqrt()
+      
+      @arrowAlpha=0.7
+      if distance <= @rectWidth+15
+          additional=15
+      else if distance >=120
+          additional=120-@rectWidth
+          @arrowAlpha=1.0
+      else
+         additional=distance-@rectWidth
+      end
+      
+      @arrow[0]=new Point(@circleX+@rectWidth+additional, @arrow[0].getY())
+      @arrow[1]=new Point(@circleX+@rectWidth+additional-15, @arrow[1].getY())
+      @arrow[2]=new Point(@circleX+@rectWidth+additional-15, @arrow[2].getY())
+      @arrow[5]=new Point(@circleX+@rectWidth+additional-15, @arrow[5].getY())
+      @arrow[6]=new Point(@circleX+@rectWidth+additional-15, @arrow[6].getY())        
+      
+      @velocity=80*additional/60
+        
+    end
+    
+    def move()
+        controls = getControls()
+        mouseX=controls.getMouseX()
+        mouseY=controls.getMouseY()
+        dy=@circleY-mouseY
+        dx=mouseX-@circleX        
+        changeAngle(dx,dy)
+        changeVelocity(dx,dy)
+       
+    end
+    
+    
+    def drawCheatLine(xi,yi)
+        
+        setColor(0,0,0,0.2)
+	
+	time=0
+	vx=@velocity*(-1*@angle).cos()
+	vy=@velocity*(-1*@angle).sin()
+	
+	100.times() do |i|	        
+		x=xi+vx*time
+		y=yi-vy*time+4.9*time*time        
+		fillCircle(x,y,15,true)
+                time=time+0.2
+	end
+	
+    end
+    
+    def getAngle()
+        return (-1*@angle).toDegrees()
+    end
+    
+    def getVelocity()
+        return @velocity
+    end
+    
+    def fire()
+        @fired=true
+    end
+    
+    def reset()
+        @balls=[]
+    end
+
+end
+
+//////////////////////////////////////////////////
+
+class Ball
+    def new(x,y,angle,velocity)
+        @xi=x
+        @yi=y
+        @diameter=15
+        @time=0
+        @angle=-1*angle
+        @v=velocity
+        @timestep=0.2
+        @x=@xi
+        @y=@yi
+        @valid=true
+        @moving=true
+        @exploding=false
+        @current=@diameter
+        @dir=1
+        @initTime=0
+    end
+    
+    def draw()
+        if @valid
+            setColor(0,0,0)
+            if @moving
+        	vx=@v*@angle.cos()
+	        vy=@v*@angle.sin()
+	        @x=@xi+vx*@time
+	        @y=@yi-vy*@time+4.9*@time*@time
+        	@time=@time+@timestep
+        	fillCircle(@x,@y,@diameter,true) 
+        	if @x > $SCREEN_WIDTH || @x < 0 || @y > $SCREEN_HEIGHT
+        	    invalidate()
+        	end
+            else if @exploding
+                explode()
+            end
+             
+        end
+    end
+    
+    def getNextPoint()
+        vx=@v*@angle.cos()
+	vy=@v*@angle.sin()
+	return new Point (@xi+vx*@time, @yi-vy*@time+4.9*@time*@time)
+    end
+    
+    def getNextY()
+    end
+    
+    def getX()
+        return @x
+    end
+    
+    def getY()
+        return @y
+    end
+    
+    def getDiameter()
+        return @diameter
+    end
+    
+
+    
+    def isMoving()
+        return @moving
+    end
+    
+    def invalidate()
+        @valid=false
+    end
+    
+    def isValid()
+        return @valid
+    end
+    
+    def setExploding(x,y)
+        @x=x
+        @y=y
+        @exploding=true
+	@moving=false
+    end
+    
+     def explode()
+           
+            if @current >= 30
+                @initTime=@initTime+1
+                if (@initTime<15)
+                    @dir=0
+                else 
+	                @dir=-1
+	        end
+	     else if @current < 0
+	            invalidate()
+	     end
+	     @current=@current+@dir*2	        
+             setColor(255,165,0, 0.8)
+             fillCircle(@x, @y, @current,true)
+
+    end    
+end
+
+//////////
+
+class Point
+     def new(x,y)
+         @x=x
+         @y=y
+     end
+     
+     def getX()
+         return @x
+     end
+     
+     def getY()
+         return @y
+     end
+
+     
+     def rotate(base, rotationAngle) //in radians
+     
+        baseX=base.getX()
+        baseY=base.getY()
+        
+        //shift x and y relative to 0,0 origin
+        offsetX = (@x + (baseX * -1))
+        offsetY = (@y + (baseY * -1))
+        //get distance from origin to source point
+        r = (offsetX.pow(2) + offsetY.pow(2)).sqrt()
+        //get current angle of orientation
+        theta = (offsetY / offsetX).atan();
+        // add rotation value to theta to get new angle of orientation
+        offsetTheta = theta + rotationAngle;
+        //calculate new x coord
+        rotateX = r * (offsetTheta).cos()
+        //calculate new y coord
+        rotateY = r * (offsetTheta).sin()
+        //shift new x and y relative to base point
+        rotateX = (rotateX + baseX)
+        rotateY = (rotateY + baseY)
+        return new Point(rotateX, rotateY)
+        
+     end
+end
+
+////////////////////////////////////
+class Colour
+    def new(r,g,b)
+        @r=r
+        @g=g
+        @b=b
+    end
+    
+    def getR()
+        return @r
+    end
+    def getG()
+        return @g
+    end
+    def getB()
+        return @b
+    end    
+    def equals(another)
+        return @r==another.getR() && @b==another.getB() && @g==another.getG()
+    end
+end
+
+/////////////////////////////
+class Dialog
+
+    def new()
+        @ok=false
+    end
+    
+    def draw(header, message, actionText, isError)
+        fill(0,0,0,0.6)
+        height=150
+        width=300
+        
+        darkBlue=new Colour(0, 0, 128)
+        lightBlue=new Colour(72,209,204) 
+        red=new Colour(255,0,0)
+        pink=new Colour(255,160,122)
+        
+        darkColour=darkBlue
+        lightColour=lightBlue
+        hoverColour=red
+        if isError
+           darkColour=red
+           lightColour=pink
+           hoverColour=darkBlue
+        end
+        
+        setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())
+        fillRoundedRect(($SCREEN_WIDTH)/2,($SCREEN_HEIGHT)/2,width+5,height+5,20,true)        
+        
+        setColor(lightColour.getR(), lightColour.getG(), lightColour.getB())
+        fillRoundedRect(($SCREEN_WIDTH)/2,($SCREEN_HEIGHT)/2,width,height,20,true) 
+        
+        setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())
+        fontsize=25
+        setFont( 'Arial', fontsize, 'bold' )
+        y=($SCREEN_HEIGHT)/2 -height/2 + fontsize
+        
+        fillText(header, ($SCREEN_WIDTH)/2, y, true)
+        
+        y=y+20
+        drawLine(($SCREEN_WIDTH-width)/2,y,($SCREEN_WIDTH-width)/2+width ,y,3);
+        
+        fontsize=20
+        setFont( 'Arial', fontsize )
+        y=y+fontsize+5
+        fillText(message, ($SCREEN_WIDTH)/2,y, true)
+        
+        y=($SCREEN_HEIGHT)/2+height/2-fontsize-10
+        setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())        
+        butWidth=150
+        butHeight=fontsize+20
+                
+        controls=getControls()
+        mouseX=controls.getMouseX()
+        mouseY=controls.getMouseY()
+        
+        if isRectOverlap( ($SCREEN_WIDTH)/2,y, butWidth,butHeight, mouseX, mouseY, 1,1, true )
+            if(controls.isLeftClick())
+                @ok=true
+            end
+            setColor(hoverColour.getR(), hoverColour.getG(), hoverColour.getB())           
+        else
+            setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())
+        end
+        
+        fillRoundedRect(($SCREEN_WIDTH)/2,y,butWidth,butHeight,20,true)
+        
+        setColor(lightColour.getR(), lightColour.getG(), lightColour.getB())
+        setFont( 'Arial', fontsize, 'bold' )
+        fillText(actionText, ($SCREEN_WIDTH)/2, y, true)
+    end
+    
+    def isOk()
+        return @ok
+    end
+
+end    
+////////////////////////////////////
+
