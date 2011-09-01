@@ -1,0 +1,559 @@
+/**
+ * Chain Reaction
+ * (based on the classic)
+ * @sharfah 22/8/2011
+ */
+
+$SCREEN_HEIGHT = getScreenHeight()
+$SCREEN_WIDTH = getScreenWidth()
+
+// game states
+$IN_GAME=false
+$GAME_OVER=false
+$NEW_GAME=false
+
+$ATOM_DIAMETER=15
+$BANG_DIAMETER=80
+
+$TOP_SCORE=0
+
+game = new Game()
+onEachFrame() do
+    if $GAME_OVER
+         game.drawGameOver()
+         $IN_GAME=false
+    else if $IN_GAME
+        game.draw()        
+    else if $NEW_GAME
+         game = new Game()
+         $NEW_GAME=false
+         $IN_GAME=true
+    else
+        game.drawTitle()
+    end
+end
+
+///////////////////////////////////////////////////
+class Game
+
+    def new()
+        $SOUND_POOL=new SoundPool()
+        @levels = []
+        @levels.add(new Level(1,1,5))
+        @levels.add(new Level(2,2,10))
+        @levels.add(new Level(3,4,15))
+        @levels.add(new Level(4,6,20))
+        @levels.add(new Level(5,10,25))
+        @levels.add(new Level(6,15,30))
+        @levels.add(new Level(7,18,35))
+        @levels.add(new Level(8,22,40))
+        @levels.add(new Level(9,30,45))
+        @levels.add(new Level(10,37,50))
+        @levels.add(new Level(11,48,55))
+        @levels.add(new Level(12,55,60))
+        @currentLevelIdx=0
+        @score=0
+        
+        @atoms=[]
+        10.times() do |i|
+            @atoms.add(new Atom())
+        end    
+    end
+    
+    def draw()
+        if @currentLevelIdx >= @levels.size()
+            $GAME_OVER=true
+        else
+            currentLevel = @levels[@currentLevelIdx]
+            currentLevel.draw()
+            levelScore=currentLevel.getScore()
+            
+            ts=$TOP_SCORE
+            if levelScore+@score > $TOP_SCORE
+                ts=levelScore+@score
+            end
+
+            setColor(255, 255, 255, 0.7)
+            setFont( 'Arial', 12 )
+            fillText("Score: "+(levelScore+@score) + ", Top Score: " +ts, $SCREEN_WIDTH-155, 10)
+                        
+
+            if levelScore >= currentLevel.getTarget()
+                setColor(0,255,0,0.7)
+            end
+            fillText("Level: "+(@currentLevelIdx+1)+", Target: " + currentLevel.getTarget() + ", Hits: " + levelScore+"/"+currentLevel.getNumAtoms(), 10, 10)
+            
+            if(currentLevel.isComplete())
+                @currentLevelIdx=@currentLevelIdx+1
+                @score=@score+levelScore
+                if @score> $TOP_SCORE
+                   $TOP_SCORE=@score
+                end                
+            end
+            
+        end
+    end
+    
+    
+    def drawGameOver()
+        $SOUND_POOL.free()
+        fill(0,0,0)
+        setFont( 'Arial', 40 )
+        size=45
+        setColor(0,255,0,0.7)
+        fillText("You Won!",7*size,2*size)
+        setColor(255,255,255,0.7)
+        setFont('Arial', 20)
+        fillText("You completed all "+ @levels.size() +" levels.", 7*size,2*size+50)
+        setColor(255,0,0)
+        setFont('Arial', 20, 'bold')
+        fillText("Click to Play Again", 7*size, 6*size)
+         
+        controls = getControls()
+        if controls.isLeftClick()
+           $NEW_GAME=false
+           $GAME_OVER=false
+        end        
+     end
+    
+    def drawTitle()
+        fill(0,0,0)
+        setFont( 'Arial', 50 )
+        c = new RandomColour()
+        size=45
+        
+        setColor(c.getR(),c.getG(),c.getB())
+        fillText("CHAIN",7*size,2*size)
+        fillText("REACTION",7*size,2*size+55)
+    
+        setColor(255,255,255)
+        setFont( 'Arial', 15 )
+        fillText("Start a chain reaction to",7*size,5*size)
+        fillText("explode as many atoms as possible!",7*size,5*size+20)
+    
+        setColor(255,0,0)
+        setFont( 'Arial', 20, 'bold' )
+        fillText("Click to Start",7*size,6*size+20)
+      
+        controls = getControls()
+        if controls.isLeftClick()
+           $NEW_GAME=true
+        end   
+        
+        @atoms.each() do |a|
+            a.draw()
+        end
+    end
+
+
+end
+
+
+///////////////////////////////////////////////////
+class Level
+
+    def new(id, target, numAtoms)
+        @id=id
+        @target=target
+        @numAtoms=numAtoms
+        @inLevel=false
+        @levelComplete=false
+        @levelFailed=false
+        @atoms=[]
+        @fired=false
+        @bangs=[]
+        @levelScore=0
+        @bid=0
+    end
+    
+    def reinit()
+        @numAtoms.times() do |i|
+           @atoms.add(new Atom())
+        end    
+        @fired=false
+        @bangs=[]
+        @levelScore=0 
+        @levelComplete=false
+        @levelFailed=false
+        @bid=0
+    end
+    
+    def draw()
+        if !@inLevel && @levelFailed
+            dialog("TRY AGAIN!", true)
+        else if !@inLevel
+            dialog("START!", false)            
+        else
+            drawLevel()
+        end
+    end
+    
+    def isComplete()
+        return @levelComplete
+    end
+    
+    def getScore()
+        return @levelScore
+    end
+    
+    def getNumAtoms()
+        return @numAtoms
+    end
+    
+    def getTarget()
+        return @target
+    end
+    
+    def drawLevel()
+        if @atoms.isEmpty()
+            reinit()
+        end
+        
+        fill(0,0,0)
+        //get mouse input
+        controls = getControls()
+        mouseX = controls.getMouseX()
+        mouseY = controls.getMouseY()
+       
+        if(!@fired)
+            setColor(255, 0, 0 , 0.5)            
+            fillCircle(mouseX-$BANG_DIAMETER/2, mouseY-$BANG_DIAMETER/2, $BANG_DIAMETER)
+            if(controls.isLeftClick())
+                @bangs.add(new Bang(@bid, mouseX, mouseY, new Colour(255,0,0)))
+                @fired=true
+                @bid=@bid+1
+            end
+        end
+        
+        @bangs.each() do |b|
+            b.draw()
+        end
+        
+        @atoms.each() do |a|
+           a.draw()
+        end      
+        
+        //check collisions
+        tmp=[]
+        @bangs.each() do |b|
+           @atoms.each() do |c|
+               if (b.isValid() && c.isValid() && 
+                   isEllipseOverlap(c.getX(), c.getY(), $ATOM_DIAMETER, $ATOM_DIAMETER, b.getX(), b.getY(),b.getCurrentDiameter(), b.getCurrentDiameter()))
+                    $SOUND_POOL.play()
+                    tmp.add(new Bang(@bid,c.getX()+$ATOM_DIAMETER/2, c.getY()+$ATOM_DIAMETER/2, c.getColour()))
+                    @bid=@bid+1
+                    c.invalidate()
+                    @levelScore=@levelScore+1
+               end
+           end
+        end
+        
+        tmp.each() do |e|
+            @bangs.add(e)
+        end 
+                
+        if isLevelOver()
+             if @levelScore >= @target
+                 @levelComplete=true
+                 @inLevel=false
+             else
+                 @levelFailed=true
+                 @inLevel=false
+             end
+        end
+    end
+    
+    def isLevelOver()
+        if !@bangs.isEmpty()
+            found=false
+            @bangs.each() do |b|
+                if b.isValid()
+                    found=true
+                end
+            end
+            return !found
+        end        
+    end
+    
+    def dialog(s, error)
+        @atoms=[]
+        fill(0,0,0)
+       
+        height=150
+        width=300
+        
+        darkBlue=new Colour(0, 0, 128)
+        lightBlue=new Colour(72,209,204) 
+        red=new Colour(255,0,0)
+        pink=new Colour(255,160,122)
+        
+        darkColour=darkBlue
+        lightColour=lightBlue
+        hoverColour=red
+        header="Level "+@id
+        if error
+           darkColour=red
+           lightColour=pink
+           hoverColour=darkBlue
+           header = header + " Failed!"
+        end
+        
+        setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())
+        fillRoundedRect(($SCREEN_WIDTH)/2,($SCREEN_HEIGHT)/2,width+5,height+5,20,true)        
+        
+        setColor(lightColour.getR(), lightColour.getG(), lightColour.getB())
+        fillRoundedRect(($SCREEN_WIDTH)/2,($SCREEN_HEIGHT)/2,width,height,20,true) 
+        
+        setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())
+        fontsize=25
+        setFont( 'Arial', fontsize, 'bold' )
+        y=($SCREEN_HEIGHT)/2 -height/2 + fontsize
+        
+        fillText(header, ($SCREEN_WIDTH)/2, y, true)
+        
+        y=y+20
+        drawLine(($SCREEN_WIDTH-width)/2,y,($SCREEN_WIDTH-width)/2+width ,y,3);
+        
+        fontsize=20
+        setFont( 'Arial', fontsize )
+        y=y+fontsize+5
+        fillText("Get " + @target + " out of " + @numAtoms + " atoms", ($SCREEN_WIDTH)/2,y, true)
+        
+        y=($SCREEN_HEIGHT)/2+height/2-fontsize-10
+        setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())        
+        butWidth=150
+        butHeight=fontsize+20
+                
+        controls=getControls()
+        mouseX=controls.getMouseX()
+        mouseY=controls.getMouseY()
+        
+        if isRectOverlap( ($SCREEN_WIDTH)/2,y, butWidth,butHeight, mouseX, mouseY, 1,1, true )
+            if(controls.isLeftClick())
+                @inLevel=true
+            end
+            setColor(hoverColour.getR(), hoverColour.getG(), hoverColour.getB())           
+        else
+            setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())
+        end
+        
+        fillRoundedRect(($SCREEN_WIDTH)/2,y,butWidth,butHeight,20,true)
+        
+        setColor(lightColour.getR(), lightColour.getG(), lightColour.getB())
+        setFont( 'Arial', fontsize, 'bold' )
+        fillText(s, ($SCREEN_WIDTH)/2, y, true)
+    end
+end
+
+
+/////////////////////////////
+class Bang
+
+    def new(id,x,y,c)
+        @x=x
+        @y=y
+        @current=$ATOM_DIAMETER
+        @valid=true
+        @dir=1
+        @initTime=0
+        @c=c
+        @id=id
+    end
+    
+   
+    def move()    
+        if @valid
+            if @current >= $BANG_DIAMETER
+                @initTime=@initTime+1
+                if (@initTime<60)
+                    @dir=0
+            else 
+                    @dir=-1
+            end
+	     else if @current < 0
+	            invalidate()
+	     end
+	     @current=@current+@dir*2	        
+        end
+    end
+    
+    def draw()
+        if isValid()
+            setColor(@c.getR(), @c.getG(), @c.getB(), 0.7)
+            fillCircle(@x-@current/2, @y-@current/2, @current)
+            setColor(255,255,255,0.7)
+            if @id > 0 
+                fillText(""+@id,@x,@y,true)
+            end
+            move()
+        end
+    end 
+    
+    def getX()
+        return @x-@current/2
+    end
+    
+    def getY()
+        return @y-@current/2
+    end
+    
+    def getCurrentDiameter()
+        return @current
+    end
+    
+    def invalidate()
+        @valid=false
+    end
+    
+    def isValid()
+        return @valid 
+    end    
+  
+end
+
+/////////////////////////////
+class Atom
+    
+    def new()
+       @x=rand(0, $SCREEN_WIDTH-$ATOM_DIAMETER)
+       @y=rand(0, $SCREEN_HEIGHT-$ATOM_DIAMETER)
+       @c=new RandomColour()
+       //direction
+       @dx=1
+       @dy=1
+       if randBoolean()
+           @dx = -1
+       end
+       if randBoolean()
+           @dy=-1
+       end
+       @valid=true
+       
+    end
+    
+    def move()
+      if(@valid)
+        if(@x<=0 || @x >= ($SCREEN_WIDTH-$ATOM_DIAMETER))
+          @dx = -1 * @dx
+        end
+        if(@y<=0 || @y >= ($SCREEN_HEIGHT-$ATOM_DIAMETER))
+          @dy = -1 * @dy
+        end
+        @x = @x + @dx
+        @y = @y + @dy
+      end
+    end
+    
+    def getColour()
+        return @c
+    end
+    
+    def getX()
+        return @x
+    end
+    
+    def getY()
+        return @y
+    end
+    
+    def invalidate()
+        @valid=false
+    end
+    
+    def isValid()
+        return @valid 
+    end
+    
+    def draw()
+         if(isValid())
+            setColor(@c.getR(),@c.getG(), @c.getB())
+            fillCircle(@x, @y, $ATOM_DIAMETER)
+            move()
+         end
+    end
+end
+
+////////////////////////////////////
+class SoundPool
+    def new()
+        @pool=[]
+        s = new Sound("hit.mp3")
+        @pool.add(s)
+        19.times() do |i|            
+            @pool.add(s.clone())
+        end
+        @index=0
+    end
+    
+    def play()
+        @pool[@index].play()
+        @index=@index+1
+        if @index >= @pool.size()
+            @index=0
+        end
+    end
+    
+    def free()
+        @pool.each() do |i|
+            i.free()
+        end
+    end
+    
+end
+
+////////////////////////////////////
+class Colour
+    def new(r,g,b)
+        @r=r
+        @g=g
+        @b=b
+    end
+    
+    def getR()
+        return @r
+    end
+    def getG()
+        return @g
+    end
+    def getB()
+        return @b
+    end    
+    def equals(another)
+        return @r==another.getR() && @b==another.getB() && @g==another.getG()
+    end
+end
+////////////////////////////////////
+
+class RandomColour
+    def new()
+        red = new Colour(255,0,0)
+        green = new Colour(0,255,0)
+        blue = new Colour(0,0,255)
+        yellow = new Colour(255,255,0)
+        purple= new Colour(160,32,240)
+        
+        colours = []
+        colours.push(red)
+        colours.push(blue)
+        colours.push(green)
+        colours.push(yellow)
+        colours.push(purple)
+        @rColour = colours[rand(0,colours.size())]
+    end    
+    def getR()
+        return @rColour.getR()
+    end
+    def getG()
+        return @rColour.getG()
+    end
+    def getB()
+        return @rColour.getB()
+    end 
+    def getColour()
+        return @rColour
+    end
+    def equals(another)
+        return @rColour.equals(another.getColour())
+    end
+end
+////////////////////////////////////
