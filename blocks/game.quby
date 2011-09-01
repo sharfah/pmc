@@ -1,0 +1,467 @@
+/**
+ * Blocks
+ * @sharfah 24/4/2011
+ */
+ 
+$NUM_ROWS=8
+$NUM_COLS=13
+$BLOCKSIZE=45
+$TOP_SCORE=0
+
+// game states
+$IN_GAME=false
+$GAME_OVER=false
+$NEW_GAME=false
+
+grid = new Grid($NUM_ROWS,$NUM_COLS, $BLOCKSIZE)
+
+time = new Time().toMilliseconds()
+
+/*
+main loop
+*/
+onEachFrame() do
+
+    if $GAME_OVER
+         fill(255,165,0)
+         grid.drawGameOver()
+         $IN_GAME=false
+    else if $IN_GAME
+        fill(0,0,0,0.5)
+        grid.draw()
+        now = new Time().toMilliseconds();
+    if(now - time >= 5000)
+       time = now
+       grid.shiftRight()
+    end
+    else if $NEW_GAME
+         grid = new Grid($NUM_ROWS,$NUM_COLS, $BLOCKSIZE)
+         $NEW_GAME=false
+         $IN_GAME=true
+         time = new Time().toMilliseconds()
+    else
+        fill(0,0,0)
+        grid.drawTitle()
+    end
+end
+
+////////////////////////////////////
+class Grid
+    def new(rows,cols,size)
+    @rows=rows
+    @cols=cols
+    @size=size
+        @grid=[]
+        rows.times() do |i|
+            row = new Row(i,@size)           
+            row.addBlocks(rand(1,5))
+        @grid.push(row)
+        end
+        @player = new Player(@size,5,@cols)
+    end
+    
+    def shiftRight()
+        @grid.each() do |row|
+        row.shiftRight()
+        end
+    end
+    
+    def drawGameOver()
+        @grid.each() do |row|
+            row.draw()    
+        end
+        setFont( 'Arial', 50 )
+        setColor(255,255,255)
+        fillText("GAME OVER!",7*@size,2*@size)
+        
+        setColor(255,0,0)
+        setFont( 'Arial', 20, 'bold' )
+        fillText("Press [SPACE] to Start",7*@size,6*@size)
+        
+        setFont( 'Arial', 30 )
+        setColor(255,255,255)
+        if @player.getScore()>$TOP_SCORE
+            $TOP_SCORE=@player.getScore()
+        end
+fillText("Score: "+@player.getScore()+", Top Score: "+$TOP_SCORE,0,$NUM_ROWS*@size+12)
+        
+        controls = getControls()
+        if controls.isKeyPressed("space")
+           $NEW_GAME=true
+           $GAME_OVER=false
+        end        
+    end
+    
+    def drawTitle()
+        @grid.each() do |row|
+        row.draw()    
+        end
+        setFont( 'Arial', 60 )
+        c = new RandomColour()
+        setColor(c.getR(),c.getG(),c.getB())
+        fillText("BLOCKS",7*@size,2*@size)
+        
+        setColor(255,255,255)
+        setFont( 'Arial', 20 )
+        fillText("Match 4 or more colours",7*@size,4*@size)
+        fillText("but don't let the grid fill up!",7*@size,5*@size)
+        
+        setColor(255,0,0)
+        setFont( 'Arial', 20, 'bold' )
+        fillText("Press [SPACE] to Start",7*@size,6*@size)
+        setFont( 'Arial', 11, 'italic' )
+        setColor(255,255,0)
+        fillText("(Use arrow keys to move up/down and space to fire)",7*@size,7*@size)
+        
+        
+        controls = getControls()
+        if controls.isKeyPressed("space")
+           $NEW_GAME=true
+        end        
+    end
+
+    def draw()
+        @grid.each() do |row|
+            row.draw()    
+        end
+        @player.move()
+        @player.draw()
+        
+        if @player.hasFired()
+           row = @grid[@player.getRow()]
+           col=row.appendBlock(@player.getBlock())
+           score=check(@player.getRow(),col)
+           @player.addScore(score)
+           @player.reset()
+        end
+        
+        setFont( 'Arial', 30 )
+        setColor(255,255,255)
+        scoreText="Score: "+@player.getScore()
+        if $TOP_SCORE>0
+            scoreText=scoreText+", Top Score: "+$TOP_SCORE
+        end
+        fillText(scoreText,0,$NUM_ROWS*@size+12)
+        isGameOver()
+    end 
+    
+    def check(i,j)
+        matching=[]
+        tofind=getBlockAt(i,j)
+        tofind.mark()
+        matching.push(tofind)
+        
+        matching.each() do |block|
+            results=search(block.getRow(), block.getCol())
+            results.each() do |i|
+                matching.push(i)
+            end
+        end
+        
+        score=0
+        if matching.size() > 3
+            @grid.each() do |row|
+                row.removeMarked()
+            end
+            score=matching.size()
+        end
+        unmarkAll()
+        return score
+    end    
+    
+    
+    def unmarkAll()
+        @grid.each() do |row|
+        row.unmark()
+        end
+    end
+    
+    def search(row,col)
+        block=getBlockAt(row,col)
+        above=getBlockAt(row-1,col)
+        below=getBlockAt(row+1,col)
+        left=getBlockAt(row,col-1)
+        right=getBlockAt(row,col+1)
+        
+        blocks=[]
+        arr=[above,below,left,right]
+        
+        arr.each() do |i|
+           if(i !=null && block.matches(i) && !i.isMarked())
+           blocks.push(i)
+           i.mark()
+       end
+        end
+        return blocks
+    end
+    
+    def getBlockAt(i,j)
+        row = @grid[i]
+        if(row != null)
+            return row.getBlockAt(j)
+        end
+    end
+    
+    def isGameOver()
+        @grid.each() do |row|
+            if row.size() > $NUM_COLS
+                $GAME_OVER=true                
+            end
+        end
+        return false
+    end
+    
+end
+
+////////////////////////////////////
+class Row
+    def new(i, size)
+        @row=[]
+        @i=i
+        @size=size
+    end
+    
+    def size()
+        return @row.size()
+    end
+    
+    def addBlock(block)
+        @row.push(block)
+    end
+    
+    def appendBlock(block)
+        block.setCol(@row.size())
+        @row.push(block)
+        return @row.size()-1
+    end
+    
+    def addBlocks(num)
+        num.times() do |i|
+            block = new Block(@size,@i,@row.size())
+            addBlock(block)
+        end
+    end
+    
+    def shiftRight()
+        newRow=[]
+        newRow.push(new Block(@size,@i,0))
+        @row.each() do |block|
+        block.shiftRight()
+        newRow.push(block)
+        end
+        @row=newRow
+    end    
+    
+    def removeMarked()
+        newRow = @row.filter() { |block| return !block.isMarked() }
+        col=0
+        newRow.each() do |block|
+           block.setCol(col)
+           col=col+1
+        end
+        @row=newRow
+    end
+    
+    def draw()
+        @row.each() do |block|
+            block.draw()
+        end
+    end
+    
+    def unmark()
+        @row.each() do |block|
+            block.unmark()
+        end
+    end
+    
+    def getBlockAt(col)
+        return @row[col]
+    end
+    
+end
+
+
+////////////////////////////////////
+class Block
+    def new(size, row, col)
+        @size=size
+        @row=row
+        @col=col
+        @colour=new RandomColour()
+        @marked=false
+    end
+    
+    def getColour()
+        return @colour
+    end
+    
+    def draw()
+       alpha=1
+       if !$IN_GAME
+           alpha=0.5
+       end
+       setColor(@colour.getR(),@colour.getG(),@colour.getB(),alpha)
+       fillRect(1+@col*@size,1+@row*@size,@size-2,@size-2)  
+
+    end
+    
+    def matches(block)
+        return block.getColour().equals(@colour)
+    end
+    
+    def getRow()
+        return @row
+    end
+    
+    def shiftRight()
+        @col=@col+1
+    end
+    
+    def shiftLeft()
+        @col=@col-1
+    end
+    
+    def shiftUp()
+        @row=@row-1
+        if @row<0
+            @row=0
+        end
+    end
+    
+    def shiftDown()
+        @row=@row+1
+        if @row > $NUM_ROWS-1
+            @row=$NUM_ROWS-1
+        end
+    end
+    
+    def setCol(c)
+        @col=c
+    end
+    
+    def getCol()
+        return @col
+    end
+    
+    def mark()
+        @marked=true
+    end
+    
+    def unmark()
+        @marked=false
+    end
+    
+    def isMarked()
+        return @marked
+    end
+    
+
+end
+
+////////////////////////////////////
+class Colour
+    def new(r,g,b)
+        @r=r
+        @g=g
+        @b=b
+    end
+    
+    def getR()
+        return @r
+    end
+    def getG()
+        return @g
+    end
+    def getB()
+        return @b
+    end    
+    def equals(another)
+        return @r==another.getR() && @b==another.getB() && @g==another.getG()
+    end
+end
+
+////////////////////////////////////
+class RandomColour
+    def new()
+        red = new Colour(255,0,0)
+        green = new Colour(0,255,0)
+        blue = new Colour(0,0,255)
+        yellow = new Colour(255,255,0)
+        
+        colours = []
+        colours.push(red)
+        colours.push(blue)
+        colours.push(green)
+        colours.push(yellow)
+        @rColour = colours[rand(0,colours.size())]
+    end    
+    def getR()
+        return @rColour.getR()
+    end
+    def getG()
+        return @rColour.getG()
+    end
+    def getB()
+        return @rColour.getB()
+    end 
+    def getColour()
+        return @rColour
+    end
+    def equals(another)
+        return @rColour.equals(another.getColour())
+    end
+end
+
+////////////////////////////////////
+class Player
+
+    def new(size,i,j)
+        @size=size
+        @i=i
+        @j=j
+        @block = new Block(@size,@i,@j)
+        @fired=false
+        @score=0
+    end
+
+    def reset()
+        @block = new Block(@size,@i,@j)
+        @fired=false
+    end
+    
+    def hasFired()
+       return @fired
+    end
+    
+    def getRow()
+        return @block.getRow()
+    end
+    
+    def move()
+        controls = getControls()
+        if controls.isKeyPressed("up")
+            @block.shiftUp()
+        else if controls.isKeyPressed("down")
+            @block.shiftDown()
+        else if controls.isKeyPressed("left") || controls.isKeyPressed("space")
+            @i=@block.getRow()
+            @fired=true
+        end
+    end
+    
+    def getScore()
+        return @score
+    end
+    
+    def addScore(s)
+        @score=@score+s
+    end
+    
+    def draw()
+       @block.draw()
+    end
+    
+    def getBlock()
+        return @block
+    end
+end
