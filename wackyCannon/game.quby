@@ -1,6 +1,6 @@
 /**
- * Cannon
- * @sharfah 28/8/2011
+ * Wacky Cannon
+ * @author sharfah 28/8/2011
  */
 
 $SCREEN_HEIGHT = getScreenHeight()
@@ -12,6 +12,11 @@ $CHEAT=false
 // TITLE -> NEW_GAME -> IN_GAME -> GAME_OVER
 $GAME_STATE=:TITLE
 game = new Game()
+
+////////////////////////////////////////////////////////////////
+// MAIN LOOP
+////////////////////////////////////////////////////////////////
+
 onEachFrame() do
     if $GAME_STATE==:GAME_OVER
          game.drawGameOver()
@@ -25,14 +30,15 @@ onEachFrame() do
     end
 end
 
-///////////////////////////////////////////////////
-class Game
+////////////////////////////////////////////////////////////////
+// GAME MANAGER
+////////////////////////////////////////////////////////////////
 
+class Game
     def new()
         @builder = new LevelBuilder()
         @builder.buildLevels()
-        @levels = @builder.getLevels()
-        
+        @levels = @builder.getLevels()        
         @currentLevelIdx=0
         @scene = new FieldScene(40)
         @ground = new Ground(40)
@@ -45,7 +51,6 @@ class Game
         else
             currentLevel = @levels[@currentLevelIdx]
             currentLevel.draw()
-
             setColor(0,0,0)
             setFont('Arial', 12)
             fillText("Level "+(@currentLevelIdx+1) +"\nBombs Remaining: "+currentLevel.getRemainingBalls(), 10,10)
@@ -58,7 +63,6 @@ class Game
                 $GAME_STATE=:GAME_OVER
             end
             
-            
             if getControls().isKeyPressed(:d)
 	        $DEBUG=!$DEBUG
 	    else if getControls().isKeyPressed(:c)
@@ -70,9 +74,8 @@ class Game
             end
             
             if $DEBUG
-                new Grid().draw()
+               new Grid().draw()
             end
-            
         end
     end
     
@@ -91,7 +94,6 @@ class Game
             @levels[@currentLevelIdx].reset()
         end        
     end
-    
     
     def drawGameOver()
         @scene.draw()
@@ -114,8 +116,7 @@ class Game
         end        
      end
     
-    def drawTitle()
-        
+    def drawTitle()        
         @scene.draw()
         @ground.draw()
         @cannon.draw()
@@ -141,286 +142,11 @@ class Game
         if controls.isLeftClick()
            $GAME_STATE=:NEW_GAME
         end   
-
-    end
-
-
-end
-
-//////////////////////////////
-class Grid
-    def draw()
-        x=0
-        setColor(0,0,255)
-        setFont('Arial',10)
-        50.times() do |i|
-            drawLine(x,0,x,$SCREEN_HEIGHT)
-            fillText(x,x,5)
-            x=x+50
-        end
-        y=0
-        50.times() do |i|
-            drawLine(0,y,$SCREEN_WIDTH,y)
-            fillText(y,5,y)
-            y=y+50
-        end        
-        
-    end
-end
-
-///////////////////
-class Barrier
-    def hit(ball)
-    end
-    
-    def isFatal()
-        return false
-    end
-    
-    def reset()
-    end
-end
-///////////////////
-class Ground < Barrier
-    def new(height)
-        @groundHeight=height
-        @y=$SCREEN_HEIGHT-@groundHeight
-    end
-    
-    def draw()
-        //ground
-        setColor(0,0,0)
-        fillRect(0,@y,$SCREEN_WIDTH,@groundHeight)
-        setColor(154,205,50)
-        fillRect(0,@y+2,$SCREEN_WIDTH,@groundHeight-2)
-    end 
-    
-    def getHeight()
-        return @groundHeight
-    end
-    
-    def hit(ball)
-        groundHit=false
-        if ball.isValid()
-		if ball.getY()+ball.getDiameter()/2 >= @y
-		    ball.setExploding(ball.getX(), @y-ball.getDiameter()/2)
-		    groundHit=true
-		else
-		    next=ball.getNextPoint()
-		    if next.getY()+ball.getDiameter()/2 >= @y
-			ball.setExploding(next.getX(), @y-ball.getDiameter()/2)
-			groundHit=true
-		    end
-		end        
-        end
-        
-    end
-end
-
-///////////////////
-class Sun
-    def new(centreX, centreY)
-        @x=centreX
-        @y=centreY
-    end
-    
-    def draw()
-        //sun
-        setColor(255,215,0)
-        fillCircle(@x,@y, 70, true)
-        setColor(255,255,255,0.5)
-        fillCircle(@x,@y, 67, true)
-        setColor(255,215,0,0.5)
-        fillCircle(@x,@y, 35, true)    
-    end
-end
-///////////////////////
-
-class Cloud
-    def new(x,y,d)
-        @x=x
-        @y=y
-        @d=d
-    end
-
-    def draw()
-        setColor(224,255,255)
-        fillCircle(@x,@y,@d,true)
-        fillCircle(@x+@d/2+5,@y,@d,true)
-        fillCircle(@x,@y+@d/2,@d,true)
-        fillCircle(@x+@d/2+12,@y+@d/2,@d,true)
-        fillCircle(@x+@d+13,@y+@d/4,@d,true)
-        fillCircle(@x-@d/2,@y+@d/4,@d,true)      
-        move()
-    end
-    
-    
-    def move()
-        @x=@x+0.2
-        if (@x-@d >= $SCREEN_WIDTH)
-           @x=0-@d-13-@d/2
-        end
-    end
-
-end
-////////////////////////
-
-
-class FieldScene
-    def new(gh)
-        @sun = new Sun($SCREEN_WIDTH-50, 50)
-        @clouds=[]
-        @clouds.push(new Cloud(60,60,35))
-        @clouds.push(new Cloud(200,35,30))
-        @clouds.push(new Cloud(350,100,45))
-        @groundHeight=gh
-    end
-
-    def drawMountains()
-        setColor(107,142,35)
-        points=[$SCREEN_WIDTH,250, 300,$SCREEN_HEIGHT-@groundHeight, $SCREEN_WIDTH,$SCREEN_HEIGHT-@groundHeight]
-        fillPolygon(points)
-        points=[0,150, 550,$SCREEN_HEIGHT-@groundHeight,0,$SCREEN_HEIGHT-@groundHeight]
-        setColor(107,142,35,0.7)
-        fillPolygon(points)
-    end    
-
-    def draw()
-        fill(173,216,230)
-        @sun.draw()
-        @clouds.each() do |c|
-           c.draw()
-        end
-        drawMountains()
-    end
-end
-
-////////////////////////
-class SnowScene
-    def new()
-        @snowD=5
-        @snowX=[]
-        @snowY=[]
-        100.times() do |i|
-            @snowX.push(rand(0, $SCREEN_WIDTH-@snowD))
-            @snowY.push(rand(0, $SCREEN_HEIGHT-@snowD))
-        end         
-    end
-    
-    def drawSnow()
-        setColor(255,250,250)
-        @snowX.size().times() do |i|
-            fillCircle(@snowX[i], @snowY[i],@snowD)
-            @snowY[i]=@snowY[i]+1
-            if @snowY[i]>=$SCREEN_HEIGHT
-                @snowY[i]=0
-                @snowX[i]=rand(0, $SCREEN_WIDTH-@snowD)
-            end
-        end
-    end
-    
-    def draw()
-        fill(135,206,250)
-        setColor(95,158,160)
-        fillRect(0,$SCREEN_HEIGHT-40,$SCREEN_WIDTH,40)
-        drawSnow()
     end
 end
 
 ///////////////////////////////
-class Wall < Barrier
 
-    def new(x,y,numBricks)
-        @brickHeight=15
-        @brickWidth=30
-        @x=x
-        @y=y+@brickHeight
-        @numBricks=numBricks+1
-        @wallHeight=@numBricks*@brickHeight
-    end
-
-    def draw()
-        setColor(0,0,0)
-        fillRect(@x,@y-@wallHeight,@brickWidth,@wallHeight)
-        setColor(178,34,34)
-        fillRect(@x+2,@y-@wallHeight+2,@brickWidth-4,@wallHeight-4)
-        
-        setColor(0,0,0)
-        i=@y-@wallHeight
-        @numBricks.times() do |j|
-            
-            
-            
-            if j %2==0
-            drawRect(@x,i,@brickWidth/2,@brickHeight)
-            drawRect(@x+@brickWidth/2,i,@brickWidth/2,@brickHeight)
-            else
-            drawRect(@x,i,@brickWidth,@brickHeight)
-            end
-            
-            i=i+@brickHeight
-        end
-    end
-    
-    def hit(ball)
-       if(ball.isValid())
-          bx=ball.getX()
-          by=ball.getY()
-          bd=ball.getDiameter()
-       
-          if bx+bd/2>=@x && bx-bd/2<=@x+@brickWidth && by+bd/2>=@y-@wallHeight
-              ball.setExploding(bx,by)           
-          end
-       end
-    end
-end
-///////////////////////////////
-class Tree < Barrier
-    def new(x,y,trunkWidth,trunkHeight,treeDiameter,offset)
-        @x=x
-        @y=y+15
-        @trunkWidth=trunkWidth
-        @trunkHeight=trunkHeight
-        @treeDiameter=treeDiameter
-        
-        @trunkX=@x-@trunkWidth/2
-        @trunkY=@y-@trunkHeight
-        @treeX=@x
-        @treeY=@y-@trunkHeight-offset
-        
-    end
-    
-    def draw()
-        setColor(0,0,0)
-        fillRect(@trunkX,@trunkY,@trunkWidth,@trunkHeight)
-        setColor(222,184,135)
-        fillRect(@trunkX+2,@trunkY+2,@trunkWidth-4,@trunkHeight-4)
-        
-        
-        setColor(0,0,0)
-        fillCircle(@treeX,@treeY,@treeDiameter,true)
-        setColor(107,142,35)
-        fillCircle(@treeX,@treeY,@treeDiameter-4,true)
-
-    end
-    
-    def hit(ball)
-        if ball.isValid()
-            bx=ball.getX()
-            by=ball.getY()
-            bd=ball.getDiameter()
-            
-            if isCircleOverlap(bx,by,bd,@treeX,@treeY,@treeDiameter,true)
-                ball.setExploding(bx,by)
-            else if bx+bd/2>=@trunkX && bx-bd/2<=@trunkX+@trunkWidth && by+bd/2>=@trunkY
-                ball.setExploding(bx,by)
-            end
-        end
-    end
-    
-
-end
-///////////////////////////////
 class Level
     def new(numBalls, cannon)
        @numBalls=numBalls
@@ -438,7 +164,6 @@ class Level
        @targets.each() do |t|
            t.reset()
        end
-
        @numFired=0
        @cannon.reset()
        @barriers.each() do |b|
@@ -469,22 +194,14 @@ class Level
     
     def draw()
         @scene.draw()
-
-       
         @targets.each() do |t|
             t.draw()
         end
-        
         @cannon.draw()
-        
         @barriers.each() do |b|
 	   b.draw()
         end
-        
-        
-        
         drawBalls()
-        
         checkLevel()
         listenForFire()       
     end
@@ -501,7 +218,6 @@ class Level
              @barriers.each() do |barrier|
                  barrier.hit(b)
              end
-             
              @targets.each() do |target|
                  target.hit(b)
              end
@@ -510,9 +226,6 @@ class Level
     end
     
     def checkLevel()
-        
-
-        
         
         hasMoreTargets=false
         @targets.each() do |t|
@@ -535,17 +248,17 @@ class Level
         end
         
         if getRemainingBalls()<=0 
-                    counter=0
-                     @cannon.getBalls().each() do |b|
-                         if !b.isValid()
-                             counter=counter+1
-                         end
-                     end
+           counter=0
+           @cannon.getBalls().each() do |b|
+               if !b.isValid()
+                   counter=counter+1
+               end
+           end
                     
-                    if counter == @cannon.getBalls().size()
-                        @levelState=:LEVEL_FAILED
-                        return true
-                    end
+           if counter == @cannon.getBalls().size()
+               @levelState=:LEVEL_FAILED
+               return true
+           end
         end
         
         if hasMoreTargets
@@ -572,6 +285,7 @@ class Level
 end
 
 //////////////////////////////
+
 class LevelBuilder
 
     def new()
@@ -582,19 +296,24 @@ class LevelBuilder
         return @levels
     end
     
-    def buildGreenWorld()
+    def buildLevels()    
+       buildTreeZone()
+       buildIceCapZone()
+       buildLavaZone()
+    end    
+    
+    def buildTreeZone()
        groundHeight=40
        fieldScene=new FieldScene(groundHeight)
-       level=new Level( 5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
+       level=new Level( 6, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
        level.setScene(fieldScene)
        level.addTarget(new Target(150,$SCREEN_HEIGHT-groundHeight-13,50,15))
        level.addTarget(new Target(300,$SCREEN_HEIGHT-groundHeight-13,50,15))
        level.addTarget(new Target(550,$SCREEN_HEIGHT-groundHeight-13,50,15))       
        level.addBarrier(new Ground(groundHeight))        
-       @levels.push(level)
-       
+       @levels.push(level)       
 
-       level=new Level( 5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
+       level=new Level( 6, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
        level.setScene(fieldScene)
        level.addBarrier(new Ground(groundHeight))
        level.addBarrier(new Wall(150,$SCREEN_HEIGHT-groundHeight,13))
@@ -603,16 +322,14 @@ class LevelBuilder
        level.addTarget(new Target(190,$SCREEN_HEIGHT-groundHeight-13,50,15))
        level.addTarget(new Target(390,$SCREEN_HEIGHT-groundHeight-13,50,15))
        level.addTarget(new Target(565,$SCREEN_HEIGHT-groundHeight-13,50,15))              
-       @levels.push(level)
-       
+       @levels.push(level)       
        
        level=new Level( 5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
        level.setScene(fieldScene)
        level.addBarrier(new Ground(groundHeight))
        level.addBarrier(new Tree(300,$SCREEN_HEIGHT-groundHeight,30,200,250,25))
        level.addTarget(new Target(565,$SCREEN_HEIGHT-groundHeight-13,50,15))              
-       @levels.push(level)
-       
+       @levels.push(level)       
 
        level=new Level(5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
        level.setScene(fieldScene)
@@ -623,7 +340,6 @@ class LevelBuilder
        level.addTarget(new Target(200,$SCREEN_HEIGHT-groundHeight-13,50,15))      
        level.addTarget(new Target(400,$SCREEN_HEIGHT-groundHeight-13,50,15))
        @levels.push(level)
-
     
        level=new Level(5, new Cannon(50,$SCREEN_HEIGHT-groundHeight-24))
        level.setScene(fieldScene)
@@ -634,7 +350,7 @@ class LevelBuilder
        @levels.push(level)
     end
 
-    def buildSnowWorld()
+    def buildIceCapZone()
       
        snowScene=new SnowScene()
        level=new Level(6, new Cannon(50,100-25))
@@ -698,10 +414,10 @@ class LevelBuilder
        
     end    
     
-    def buildLavaWorld()
+    def buildLavaZone()
        lavaScene=new LavaScene()
        
-       level=new Level(6, new Cannon(48,200-25))
+       level=new Level(10, new Cannon(48,200-25))
        level.setScene(lavaScene)
        level.addBarrier(new Lava(0,40))
        level.addBarrier(new MarbleWall(10,200,40,2,false))
@@ -742,8 +458,7 @@ class LevelBuilder
        level.addTarget(new Target(203,250-14,50,15))
        level.addBarrier(new MarbleWall(550,100,30,2,false))
        level.addTarget(new Target(553,100-14,50,15))
-       @levels.push(level) 
-       
+       @levels.push(level)        
        
        level=new Level(10, new Cannon(48,325-25))
        level.setScene(lavaScene)
@@ -767,527 +482,14 @@ class LevelBuilder
        level.addBarrier(new MarbleWall(400,150,30,2,false))
        level.addTarget(new Target(400,150-14,50,15))       
        level.addBarrier(new MovingLava(0,40,100-25))
-       @levels.push(level)        
-       
-    end
-
-    def buildLevels()    
-       
-       buildGreenWorld()
-       buildSnowWorld()
-       buildLavaWorld()
-    end
-
-end
-/////////////////////////////
-class MovingSnowGround < SnowGround
-    def new(x,y,width,speed)
-        super(x,y,width)
-        setMovable(speed)
-    end
-    
-    def new(x,y,width,speed,ymin,ymax)
-        super(x,y,width)
-        setMovable(speed)
-        setRange(ymin,ymax)
-       
-    end
-end
-/////////////////////////////
-class SnowGround < Barrier
-    def new(x,y,width)
-        @x=x
-        @y=y
-        @width=width
-        @height=$SCREEN_HEIGHT-@y
-        @points=[@x-10,@y]
-        i=@x-10
-        ((@width+20)/10).times() do |f|
-           tmp = [i,@y+30,i+5,@y+30+rand(20,50),i+10,@y+30]
-           @points.push(tmp)
-           i=i+10
-        end
-        tmp=[@x+@width+10,@y]
-        @points.push(tmp)
-        @points=@points.flatten()    
-        @move=false
-        @speed=1
-        @ymin=0
-        @ymax=$SCREEN_HEIGHT
-    end
-    
-    def setMovable(speed)
-        @move=true
-        @speed=speed
-    end
-    
-    def setRange(ymin,ymax)
-       @ymin=ymin
-       @ymax=ymax
-    end
-    
-    def draw()  
-        setColor(0,0,0)
-        fillRect(@x,@y,@width,@height)
-        setColor(0,255,255)
-        fillRect(@x+2,@y+2,@width-4,@height-2)
-        setColor(238,233,233)
-        i=@x+5
-	while i < @x+@width
-	   fillRect(i,@y,2,@height)
-	   i=i+5
-	end
-       setColor(238,233,233)
-       fillPolygon(@points) 
-       setColor(0,0,0)
-       drawPolygon(@points)   
-       if @move 
-          move()
-       end
-    end
-    
-    def move()
-        @y=@y+@speed
-        @height=$SCREEN_HEIGHT-@y
-        i=0
-        @points.each() do |p|
-           if i%2==1
-               @points[i]=p+@speed
-           end
-           i=i+1
-        end
-        if @y>@ymax || @y<@ymin
-            @speed=-1*@speed
-        end
-    end  
-    
-    def hit(ball)
-        if ball.isValid()
-            bx=ball.getX()
-            by=ball.getY()
-            bd=ball.getDiameter()
-            
-            if bx+bd/2>=@x && bx-bd/2<=@x+@width && by+bd/2>=@y
-                ball.setExploding(bx,by)
-            end
-        end
-        
-    end
-end
-
-///////////////////////////////////////////
-class LavaScene
-    def new()
-    end
-    
-    def drawWindow()
-    
-        x=400
-        y=15
-        width=100
-        height=135
-        
-        setColor(176,48,96)
-        fillRect(x,y,width,height)
-        setColor(0,0,0,0.9)
-        drawRect(x,y,width,height)
-        
-        fillRect(x+10,y+10,width-20,height-20)
-        i=x+20
-        while i < x+10+width-20
-            setColor(255,255,255,0.7)
-            fillRect(i,y+10,5,height-20)
-            i=i+20
-        end    
-        
-    end
-    def draw()
-        fill(147,112,219)
-        x=0
-        y=0
-        //wall
-        setColor(0,0,0)
-        ($SCREEN_HEIGHT/25).times() do |row|
-		($SCREEN_WIDTH/100).times() do
-		   drawRect(x,y,100,25)
-		   x=x+100
-		end
-		y=y+25
-		if row%2==0
-		    x=-50
-		else
-		    x=0
-		end
-        end
-        drawWindow()
-    end
-end
-/////////////////////////////
-class MarbleWall < Barrier
-    def new(x,y,w,numBlocks,isVertical)
-        @x=x
-        @y=y
-        @width=w
-        @height=w
-        @numBlocks=numBlocks
-        @isVertical=isVertical
-    end
-    
-    def drawHorizontal()
-        i=@x
-        @numBlocks.times() do
-          setColor(0,0,0)
-          fillRect(i,@y,@width,@height)
-          setColor(60,179,113)
-          fillRect(i+2,@y+2,@width-4,@height-4)
-          setColor(0,0,0)
-          drawLine(i,@y,i+@width,@y+@height)
-          drawLine(i+@width,@y,i,@y+@height)
-          fillRect(i+@width/4,@y+@height/4,@width/2,@height/2)
-          setColor(152,251,152)
-          fillRect(i+@width/4+1,@y+@height/4+1,@width/2-2,@height/2-2)
-          i=i+@width-2
-        end    
-    end
-    
-    def drawVertical()
-        i=@y
-        @numBlocks.times() do
-          setColor(0,0,0)
-          fillRect(@x,i,@width,@height)
-          setColor(60,179,113)
-          fillRect(@x+2,i+2,@width-4,@height-4)
-          setColor(0,0,0)
-          drawLine(@x,i,@x+@width,i+@height)
-          drawLine(@x+@width,i,@x,i+@height)
-          fillRect(@x+@width/4,i+@height/4,@width/2,@height/2)
-          setColor(152,251,152)
-          fillRect(@x+@width/4+1,i+@height/4+1,@width/2-2,@height/2-2)
-          i=i+@height-2
-        end     
-    end
-    
-    def draw()
-        if @isVertical
-            drawVertical()
-        else
-            drawHorizontal()
-        end
-    end
-    
-    def hit(ball)
-        if ball.isValid()
-            bx=ball.getX()
-            by=ball.getY()
-            bd=ball.getDiameter()
-            
-            if @isVertical
-              if bx+bd/2>=@x && bx-bd/2<=@x+@width && by+bd/2>=@y && by-bd/2<=@y+@height*@numBlocks
-                  ball.setExploding(bx,by)
-              end            
-            else
-              if bx+bd/2>=@x && bx-bd/2<=@x+@width*@numBlocks && by+bd/2>=@y && by-bd/2<=@y+@height
-                  ball.setExploding(bx,by)
-              end
-            end
-        end
-    
-    end
-end
-
-/////////////////////////////
-class FireWheel < Barrier
-    def new(x,y,diameter)
-       @x=x
-       @y=y
-       @d=diameter
-       @pointsX=[]
-       @pointsY=[]
-       @points=[]
-       @fireD=15
-       @angle=10.toRadians()
-       @dir=2
-       @wall = new MarbleWall(@x-15,@y-15,30,1,false)
-       
-       i=@y-@d/2
-       while i<@y+@d/2
-           @pointsY.push(i)
-           @pointsX.push(@x)
-           @points.push(new Point(@x,i))
-           i=i+@fireD-2
-       end
-       i=@x-@d/2
-       while i < @x+@d/2
-           @pointsY.push(@y)
-           @pointsX.push(i)
-           @points.push(new Point(i,@y))
-           i=i+@fireD-2
-       end
-      @rot=[]
-      
-    end
-    
-    def move()
-        @rot=[]
-        @points.each() do |p|
-	     rot=p.rotate(new Point(@x,@y),@angle)
-	     @rot.push(rot)
-	     
-        end
-        @angle=@angle+@dir.toRadians()
-        if @angle.toDegrees() < 0 || @angle.toDegrees()>360
-            @dir=@dir*-1
-        end
-    end
-    
-    def draw()
-    
-        move()
-        i=0
-        @rot.each() do |p|
-          if i%2==0
-             setColor(255,140,0,0.9)
-             fillCircle(p.getX(), p.getY(), @fireD, true)
-             setColor(255,0,0)
-             drawCircle(p.getX(), p.getY(), @fireD, true)
-          else
-             setColor(255,69,0,0.9)
-             fillCircle(p.getX(), p.getY(), @fireD, true)
-             setColor(255,0,0)
-             drawCircle(p.getX(), p.getY(), @fireD, true)
-          
-          end
-          i=i+1
-        end
-        @wall.draw()
-    end
-    
-    def hit(ball)
-        if ball.isValid()
-            @rot.each() do |p|
-                if ball.isValid() && isCircleOverlap(p.getX(), p.getY(), @fireD, ball.getX(), ball.getY(), ball.getDiameter(), true)
-                    ball.setExploding(ball.getX(), ball.getY())
-                end
-            end
-        end
-    end
-    
-end
-
-//////////////////////////////
-class MovingLava < Lava
-    def new(x, height, hitY)
-        super(x,height)
-        setMoving(hitY)
-    end
-    
-end
-//////////////////////////////
-
-class Lava < Barrier
-    def new(x,height)
-        @bubbleD=10
-        @x=x
-        @y=$SCREEN_HEIGHT-height
-        @lavaHeight=height
-        @initLavaHeight=height
-        @bubblesX=[]
-        @bubblesY=[]
-        
-        50.times() do
-            @bubblesX.push(rand(0,$SCREEN_WIDTH-@bubbleD))
-            @bubblesY.push(rand($SCREEN_HEIGHT-@lavaHeight-@bubbleD,$SCREEN_HEIGHT))
-        end
-        
-        @moving=false
-        @hitY=0
-        
-    end
-    
-    def reset()
-        if @moving
-            @lavaHeight=@initLavaHeight
-            @y=$SCREEN_HEIGHT-@lavaHeight
-            @bubblesX=[]
-            @bubblesY=[]
-        
-            50.times() do
-              @bubblesX.push(rand(0,$SCREEN_WIDTH-@bubbleD))
-              @bubblesY.push(rand($SCREEN_HEIGHT-@lavaHeight-@bubbleD,$SCREEN_HEIGHT))
-            end            
-        end
-    end
-    
-    def setMoving(hitY)
-        @moving=true
-        @hitY=hitY
-    end
-
-    def bubble()
-        i=0
-        while i < @bubblesY.size()
-            @bubblesY[i]=@bubblesY[i]-1
-            if @bubblesY[i] <= $SCREEN_HEIGHT-@lavaHeight-@bubbleD
-                @bubblesY[i]=rand($SCREEN_HEIGHT-@lavaHeight,$SCREEN_HEIGHT)
-                @bubblesX[i]=rand(0,$SCREEN_WIDTH-@bubbleD)
-            end
-            i=i+1
-        end
-    end    
-    
-    def move()
-        @lavaHeight=@lavaHeight+1
-        @y=$SCREEN_HEIGHT-@lavaHeight
-        if @lavaHeight%@bubbleD==0
-                5.times() do
-	            @bubblesX.push(rand(0,$SCREEN_WIDTH-@bubbleD))
-	            @bubblesY.push($SCREEN_HEIGHT)
-                end
-        end
-    end
-    
-    def draw()
-        setColor(255,0,0)
-        fillRect(0,$SCREEN_HEIGHT-@lavaHeight,$SCREEN_WIDTH,@lavaHeight)
-        
-        i=$SCREEN_HEIGHT-@lavaHeight
-        setColor(255,140,0,0.4)
-        while i <= $SCREEN_HEIGHT
-            fillRect(0,i,$SCREEN_WIDTH,2)
-            i=i+5
-        end
-
-        i=0
-        while i < @bubblesX.size()
-            setColor(255,140,0)
-            fillCircle(@bubblesX[i],@bubblesY[i],@bubbleD)
-            setColor(255,0,0)
-            drawCircle(@bubblesX[i],@bubblesY[i],@bubbleD)            
-            i=i+1
-        end
-        bubble()  
-        if @moving
-           move()
-        end
-    end
-    
-    def isFatal()
-        return @hitY >= @y    
-    end
-    
-    def hit(ball)
-        groundHit=false
-        if ball.isValid()
-		if ball.getY()+ball.getDiameter()/2 >= @y
-		    ball.setExploding(ball.getX(), @y-ball.getDiameter()/2)
-		    groundHit=true
-		else
-		    next=ball.getNextPoint()
-		    if next.getY()+ball.getDiameter()/2 >= @y
-			ball.setExploding(next.getX(), @y-ball.getDiameter()/2)
-			groundHit=true
-		    end
-		end        
-        end
-        
-    end
-end
-
-///////////////////////////////////////////
-class MovingTarget < Target
-    def new (x,y,width, height,speed)
-       super(x,y,width,height)
-       setMovable(speed)
-    end
-end
-//////////////////////////////////////////
-class Target
-    def new(x,y,width, height)
-        @x=x
-        @y=y
-        @width=width
-        @height=height
-        @destroyed=false
-        @valid=true  
-        @moving=false
-        @speed=1
-    end
-    
-    def setMovable(speed)
-       @moving=true
-       @speed=speed
-    end
-    
-    def reset()
-        @destroyed=false
-        @valid=true
-    end
-    
-    def draw()    
-        if @valid
-            setColor(0,0,0)
-	    fillRect(@x,@y,@width,@height)
-	    if @destroyed
-	      setColor(255,0,0)
-	    else
-	      setColor(148,0,211)       
-	    end
-	    fillRect(@x+2,@y+2,@width-4,@height-4)
-	    
-	    if @moving
-	       move()
-	    end
-	end
-    end
-    
-    def move()
-       @y=@y+@speed
-
-       
-               if @y> $SCREEN_HEIGHT || @y<0
-                   @speed=-1*@speed
-        end
-    end
-    
-    def isValid()
-        return !@destroyed
-    end
-    
-    def destroy()
-        @destroyed=true
-    end
-    
-    def getX()
-        return @x
-    end
-    
-    def getY()
-        return @y
-    end
-    
-    def getWidth()
-        return @width
-    end
-    
-    def getHeight()
-        return @height
-    end
-    
-    def hit(ball)
-            if isValid() && ball.isValid() && ball.getX()+ball.getDiameter()/2 >= @x && ball.getX()-ball.getDiameter()/2 <= @x+@width
-                if ball.getY()+ball.getDiameter()/2>=@y && ball.getY()-ball.getDiameter()/2<=@y+@height
-                    
-                    ball.setExploding(ball.getX(), ball.getY())
-                    destroy()
-                    return true
-                end
-            end
-            return false        
+       @levels.push(level)
     end
 end
 
 
-///////////////////////////////
+////////////////////////////////////////////////////////////////
+// THE CANNON
+////////////////////////////////////////////////////////////////
 
 class Cannon
     def new(x,y)
@@ -1401,8 +603,7 @@ class Cannon
         return @balls
     end
     
-    def changeAngle(dx, dy)
-        
+    def changeAngle(dx, dy)        
         //change the angle
         if dy < 0 
             if dx>=0
@@ -1436,8 +637,7 @@ class Cannon
       @arrow[1]=new Point(@circleX+@rectWidth+additional-15, @arrow[1].getY())
       @arrow[2]=new Point(@circleX+@rectWidth+additional-15, @arrow[2].getY())
       @arrow[5]=new Point(@circleX+@rectWidth+additional-15, @arrow[5].getY())
-      @arrow[6]=new Point(@circleX+@rectWidth+additional-15, @arrow[6].getY())        
-      
+      @arrow[6]=new Point(@circleX+@rectWidth+additional-15, @arrow[6].getY())      
       @velocity=80*additional/60
         
     end
@@ -1449,8 +649,7 @@ class Cannon
         dy=@circleY-mouseY
         dx=mouseX-@circleX        
         changeAngle(dx,dy)
-        changeVelocity(dx,dy)
-       
+        changeVelocity(dx,dy)       
     end
     
     
@@ -1467,8 +666,7 @@ class Cannon
 		y=yi-vy*time+4.9*time*time        
 		fillCircle(x,y,15,true)
                 time=time+0.2
-	end
-	
+	end	
     end
     
     def getAngle()
@@ -1486,10 +684,9 @@ class Cannon
     def reset()
         @balls=[]
     end
-
 end
 
-//////////////////////////////////////////////////
+///////////////////////////////
 
 class Ball
     def new(x,y,angle,velocity)
@@ -1551,8 +748,6 @@ class Ball
         return @diameter
     end
     
-
-    
     def isMoving()
         return @moving
     end
@@ -1572,26 +767,813 @@ class Ball
 	@moving=false
     end
     
-     def explode()
-           
-            if @current >= 30
-                @initTime=@initTime+1
-                if (@initTime<15)
-                    @dir=0
-                else 
-	                @dir=-1
-	        end
-	     else if @current < 0
-	            invalidate()
-	     end
-	     @current=@current+@dir*2	        
-             setColor(255,165,0, 0.8)
-             fillCircle(@x, @y, @current,true)
+     def explode()           
+        if @current >= 30
+            @initTime=@initTime+1
+            if (@initTime<15)
+                @dir=0
+            else 
+	            @dir=-1
+	    end
+	 else if @current < 0
+	        invalidate()
+	 end
+	 @current=@current+@dir*2	        
+         setColor(255,165,0, 0.8)
+         fillCircle(@x, @y, @current,true)
 
     end    
 end
 
-//////////
+////////////////////////////////////////////////////////////////
+// ENEMY TARGETS
+////////////////////////////////////////////////////////////////
+
+class Target
+    def new(x,y,width, height)
+        @x=x
+        @y=y
+        @width=width
+        @height=height
+        @destroyed=false
+        @valid=true  
+        @moving=false
+        @speed=1
+    end
+    
+    def setMovable(speed)
+       @moving=true
+       @speed=speed
+    end
+    
+    def reset()
+        @destroyed=false
+        @valid=true
+    end
+    
+    def draw()    
+        if @valid
+            setColor(0,0,0)
+	    fillRect(@x,@y,@width,@height)
+	    if @destroyed
+	      setColor(255,0,0)
+	    else
+	      setColor(148,0,211)       
+	    end
+	    fillRect(@x+2,@y+2,@width-4,@height-4)
+	    
+	    if @moving
+	       move()
+	    end
+	end
+    end
+    
+    def move()
+       @y=@y+@speed
+       if @y> $SCREEN_HEIGHT || @y<0
+           @speed=-1*@speed
+       end
+    end
+    
+    def isValid()
+        return !@destroyed
+    end
+    
+    def destroy()
+        @destroyed=true
+    end
+    
+    def getX()
+        return @x
+    end
+    
+    def getY()
+        return @y
+    end
+    
+    def getWidth()
+        return @width
+    end
+    
+    def getHeight()
+        return @height
+    end
+    
+    def hit(ball)
+       if isValid() && ball.isValid() && ball.getX()+ball.getDiameter()/2 >= @x && ball.getX()-ball.getDiameter()/2 <= @x+@width
+           if ball.getY()+ball.getDiameter()/2>=@y && ball.getY()-ball.getDiameter()/2<=@y+@height
+               
+               ball.setExploding(ball.getX(), ball.getY())
+               destroy()
+               return true
+           end
+       end
+       return false        
+    end
+end
+
+///////////////////////////////
+
+class MovingTarget < Target
+    def new (x,y,width, height,speed)
+       super(x,y,width,height)
+       setMovable(speed)
+    end
+end
+
+///////////////////////////////
+
+class Barrier
+    def hit(ball)
+    end
+    
+    def isFatal()
+        return false
+    end
+    
+    def reset()
+    end
+end
+
+////////////////////////////////////////////////////////////////
+// ZONE 1: TREE ZONE
+////////////////////////////////////////////////////////////////
+
+class Sun
+    def new(centreX, centreY)
+        @x=centreX
+        @y=centreY
+    end
+    
+    def draw()
+        setColor(255,215,0)
+        fillCircle(@x,@y, 70, true)
+        setColor(255,255,255,0.5)
+        fillCircle(@x,@y, 67, true)
+        setColor(255,215,0,0.5)
+        fillCircle(@x,@y, 35, true)    
+    end
+end
+
+///////////////////////
+
+class Cloud
+    def new(x,y,d)
+        @x=x
+        @y=y
+        @d=d
+    end
+
+    def draw()
+        // would be nice if I could draw arcs, but
+        // have to make do with circles for now!
+        setColor(224,255,255)
+        fillCircle(@x,@y,@d,true)
+        fillCircle(@x+@d/2+5,@y,@d,true)
+        fillCircle(@x,@y+@d/2,@d,true)
+        fillCircle(@x+@d/2+12,@y+@d/2,@d,true)
+        fillCircle(@x+@d+13,@y+@d/4,@d,true)
+        fillCircle(@x-@d/2,@y+@d/4,@d,true)      
+        move()
+    end    
+    
+    def move()
+        @x=@x+0.2
+        if (@x-@d >= $SCREEN_WIDTH)
+           @x=0-@d-13-@d/2
+        end
+    end
+end
+
+////////////////////////
+
+class FieldScene
+    def new(gh)
+        @sun = new Sun($SCREEN_WIDTH-50, 50)
+        @clouds=[]
+        @clouds.push(new Cloud(60,60,35))
+        @clouds.push(new Cloud(200,35,30))
+        @clouds.push(new Cloud(350,100,45))
+        @groundHeight=gh
+    end
+
+    def drawMountains()
+        setColor(107,142,35)
+        points=[$SCREEN_WIDTH,250, 300,$SCREEN_HEIGHT-@groundHeight, $SCREEN_WIDTH,$SCREEN_HEIGHT-@groundHeight]
+        fillPolygon(points)
+        points=[0,150, 550,$SCREEN_HEIGHT-@groundHeight,0,$SCREEN_HEIGHT-@groundHeight]
+        setColor(107,142,35,0.7)
+        fillPolygon(points)
+    end    
+
+    def draw()
+        fill(173,216,230)
+        @sun.draw()
+        @clouds.each() do |c|
+           c.draw()
+        end
+        drawMountains()
+    end
+end
+
+///////////////////////////////
+
+class Ground < Barrier
+    def new(height)
+        @groundHeight=height
+        @y=$SCREEN_HEIGHT-@groundHeight
+    end
+    
+    def draw()
+        //ground
+        setColor(0,0,0)
+        fillRect(0,@y,$SCREEN_WIDTH,@groundHeight)
+        setColor(154,205,50)
+        fillRect(0,@y+2,$SCREEN_WIDTH,@groundHeight-2)
+    end 
+    
+    def getHeight()
+        return @groundHeight
+    end
+    
+    def hit(ball)
+        groundHit=false
+        if ball.isValid()
+		if ball.getY()+ball.getDiameter()/2 >= @y
+		    ball.setExploding(ball.getX(), @y-ball.getDiameter()/2)
+		    groundHit=true
+		else
+		    next=ball.getNextPoint()
+		    if next.getY()+ball.getDiameter()/2 >= @y
+			ball.setExploding(next.getX(), @y-ball.getDiameter()/2)
+			groundHit=true
+		    end
+		end        
+        end
+    end
+end
+
+///////////////////////////////
+
+class Wall < Barrier
+
+    def new(x,y,numBricks)
+        @brickHeight=15
+        @brickWidth=30
+        @x=x
+        @y=y+@brickHeight
+        @numBricks=numBricks+1
+        @wallHeight=@numBricks*@brickHeight
+    end
+
+    def draw()
+        setColor(0,0,0)
+        fillRect(@x,@y-@wallHeight,@brickWidth,@wallHeight)
+        setColor(178,34,34)
+        fillRect(@x+2,@y-@wallHeight+2,@brickWidth-4,@wallHeight-4)
+        
+        setColor(0,0,0)
+        i=@y-@wallHeight
+        @numBricks.times() do |j|
+            if j %2==0
+              drawRect(@x,i,@brickWidth/2,@brickHeight)
+              drawRect(@x+@brickWidth/2,i,@brickWidth/2,@brickHeight)
+            else
+              drawRect(@x,i,@brickWidth,@brickHeight)
+            end
+            i=i+@brickHeight
+        end
+    end
+    
+    def hit(ball)
+       if(ball.isValid())
+          bx=ball.getX()
+          by=ball.getY()
+          bd=ball.getDiameter()
+          if bx+bd/2>=@x && bx-bd/2<=@x+@brickWidth && by+bd/2>=@y-@wallHeight
+              ball.setExploding(bx,by)           
+          end
+       end
+    end
+end
+
+///////////////////////////////
+
+class Tree < Barrier
+    def new(x,y,trunkWidth,trunkHeight,treeDiameter,offset)
+        @x=x
+        @y=y+15
+        @trunkWidth=trunkWidth
+        @trunkHeight=trunkHeight
+        @treeDiameter=treeDiameter
+        
+        @trunkX=@x-@trunkWidth/2
+        @trunkY=@y-@trunkHeight
+        @treeX=@x
+        @treeY=@y-@trunkHeight-offset
+        
+    end
+    
+    def draw()
+        setColor(0,0,0)
+        fillRect(@trunkX,@trunkY,@trunkWidth,@trunkHeight)
+        setColor(222,184,135)
+        fillRect(@trunkX+2,@trunkY+2,@trunkWidth-4,@trunkHeight-4)
+        
+        
+        setColor(0,0,0)
+        fillCircle(@treeX,@treeY,@treeDiameter,true)
+        setColor(107,142,35)
+        fillCircle(@treeX,@treeY,@treeDiameter-4,true)
+
+    end
+    
+    def hit(ball)
+        if ball.isValid()
+            bx=ball.getX()
+            by=ball.getY()
+            bd=ball.getDiameter()
+            
+            if isCircleOverlap(bx,by,bd,@treeX,@treeY,@treeDiameter,true)
+                ball.setExploding(bx,by)
+            else if bx+bd/2>=@trunkX && bx-bd/2<=@trunkX+@trunkWidth && by+bd/2>=@trunkY
+                ball.setExploding(bx,by)
+            end
+        end
+    end
+end
+
+////////////////////////////////////////////////////////////////
+// ZONE 2: ICE CAP ZONE
+////////////////////////////////////////////////////////////////
+
+class SnowScene
+    def new()
+        @snowD=5
+        @snowX=[]
+        @snowY=[]
+        100.times() do |i|
+            @snowX.push(rand(0, $SCREEN_WIDTH-@snowD))
+            @snowY.push(rand(0, $SCREEN_HEIGHT-@snowD))
+        end         
+    end
+    
+    def drawSnow()
+        setColor(255,250,250)
+        @snowX.size().times() do |i|
+            fillCircle(@snowX[i], @snowY[i],@snowD)
+            @snowY[i]=@snowY[i]+1
+            if @snowY[i]>=$SCREEN_HEIGHT
+                @snowY[i]=0
+                @snowX[i]=rand(0, $SCREEN_WIDTH-@snowD)
+            end
+        end
+    end
+    
+    def draw()
+        fill(135,206,250)
+        setColor(95,158,160)
+        fillRect(0,$SCREEN_HEIGHT-40,$SCREEN_WIDTH,40)
+        drawSnow()
+    end
+end
+
+/////////////////////////////
+
+class SnowGround < Barrier
+    def new(x,y,width)
+        @x=x
+        @y=y
+        @width=width
+        @height=$SCREEN_HEIGHT-@y
+        @points=[@x-10,@y]
+        i=@x-10
+        ((@width+20)/10).times() do |f|
+           tmp = [i,@y+30,i+5,@y+30+rand(20,50),i+10,@y+30]
+           @points.push(tmp)
+           i=i+10
+        end
+        tmp=[@x+@width+10,@y]
+        @points.push(tmp)
+        @points=@points.flatten()    
+        @move=false
+        @speed=1
+        @ymin=0
+        @ymax=$SCREEN_HEIGHT
+    end
+    
+    def setMovable(speed)
+        @move=true
+        @speed=speed
+    end
+    
+    def setRange(ymin,ymax)
+       @ymin=ymin
+       @ymax=ymax
+    end
+    
+    def draw()  
+        setColor(0,0,0)
+        fillRect(@x,@y,@width,@height)
+        setColor(0,255,255)
+        fillRect(@x+2,@y+2,@width-4,@height-2)
+        setColor(238,233,233)
+        i=@x+5
+	while i < @x+@width
+	   fillRect(i,@y,2,@height)
+	   i=i+5
+	end
+       setColor(238,233,233)
+       fillPolygon(@points) 
+       setColor(0,0,0)
+       drawPolygon(@points)   
+       if @move 
+          move()
+       end
+    end
+    
+    def move()
+        @y=@y+@speed
+        @height=$SCREEN_HEIGHT-@y
+        i=0
+        @points.each() do |p|
+           if i%2==1
+               @points[i]=p+@speed
+           end
+           i=i+1
+        end
+        if @y>@ymax || @y<@ymin
+            @speed=-1*@speed
+        end
+    end  
+    
+    def hit(ball)
+        if ball.isValid()
+            bx=ball.getX()
+            by=ball.getY()
+            bd=ball.getDiameter()            
+            if bx+bd/2>=@x && bx-bd/2<=@x+@width && by+bd/2>=@y
+                ball.setExploding(bx,by)
+            end
+        end        
+    end
+end
+
+/////////////////////////////
+
+class MovingSnowGround < SnowGround
+    def new(x,y,width,speed)
+        super(x,y,width)
+        setMovable(speed)
+    end
+    
+    def new(x,y,width,speed,ymin,ymax)
+        super(x,y,width)
+        setMovable(speed)
+        setRange(ymin,ymax)
+       
+    end
+end
+
+////////////////////////////////////////////////////////////////
+// ZONE 3: LAVA ZONE
+////////////////////////////////////////////////////////////////
+
+class LavaScene
+    def new()
+    end
+    
+    def drawWindow()
+    
+        x=400
+        y=15
+        width=100
+        height=135
+        
+        setColor(176,48,96)
+        fillRect(x,y,width,height)
+        setColor(0,0,0,0.9)
+        drawRect(x,y,width,height)
+        
+        fillRect(x+10,y+10,width-20,height-20)
+        i=x+20
+        while i < x+10+width-20
+            setColor(255,255,255,0.7)
+            fillRect(i,y+10,5,height-20)
+            i=i+20
+        end    
+        
+    end
+    def draw()
+        fill(147,112,219)
+        x=0
+        y=0
+        //wall
+        setColor(0,0,0)
+        ($SCREEN_HEIGHT/25).times() do |row|
+		($SCREEN_WIDTH/100).times() do
+		   drawRect(x,y,100,25)
+		   x=x+100
+		end
+		y=y+25
+		if row%2==0
+		    x=-50
+		else
+		    x=0
+		end
+        end
+        drawWindow()
+    end
+end
+
+/////////////////////////////
+
+class MarbleWall < Barrier
+    def new(x,y,w,numBlocks,isVertical)
+        @x=x
+        @y=y
+        @width=w
+        @height=w
+        @numBlocks=numBlocks
+        @isVertical=isVertical
+    end
+    
+    def drawHorizontal()
+        i=@x
+        @numBlocks.times() do
+          setColor(0,0,0)
+          fillRect(i,@y,@width,@height)
+          setColor(60,179,113)
+          fillRect(i+2,@y+2,@width-4,@height-4)
+          setColor(0,0,0)
+          drawLine(i,@y,i+@width,@y+@height)
+          drawLine(i+@width,@y,i,@y+@height)
+          fillRect(i+@width/4,@y+@height/4,@width/2,@height/2)
+          setColor(152,251,152)
+          fillRect(i+@width/4+1,@y+@height/4+1,@width/2-2,@height/2-2)
+          i=i+@width-2
+        end    
+    end
+    
+    def drawVertical()
+        i=@y
+        @numBlocks.times() do
+          setColor(0,0,0)
+          fillRect(@x,i,@width,@height)
+          setColor(60,179,113)
+          fillRect(@x+2,i+2,@width-4,@height-4)
+          setColor(0,0,0)
+          drawLine(@x,i,@x+@width,i+@height)
+          drawLine(@x+@width,i,@x,i+@height)
+          fillRect(@x+@width/4,i+@height/4,@width/2,@height/2)
+          setColor(152,251,152)
+          fillRect(@x+@width/4+1,i+@height/4+1,@width/2-2,@height/2-2)
+          i=i+@height-2
+        end     
+    end
+    
+    def draw()
+        if @isVertical
+            drawVertical()
+        else
+            drawHorizontal()
+        end
+    end
+    
+    def hit(ball)
+        if ball.isValid()
+            bx=ball.getX()
+            by=ball.getY()
+            bd=ball.getDiameter()            
+            if @isVertical
+              if bx+bd/2>=@x && bx-bd/2<=@x+@width && by+bd/2>=@y && by-bd/2<=@y+@height*@numBlocks
+                  ball.setExploding(bx,by)
+              end            
+            else
+              if bx+bd/2>=@x && bx-bd/2<=@x+@width*@numBlocks && by+bd/2>=@y && by-bd/2<=@y+@height
+                  ball.setExploding(bx,by)
+              end
+            end
+        end
+    end
+end
+
+/////////////////////////////
+
+class FireWheel < Barrier
+    def new(x,y,diameter)
+       @x=x
+       @y=y
+       @d=diameter
+       @pointsX=[]
+       @pointsY=[]
+       @points=[]
+       @fireD=15
+       @angle=10.toRadians()
+       @dir=2
+       @wall = new MarbleWall(@x-15,@y-15,30,1,false)       
+       i=@y-@d/2
+       while i<@y+@d/2
+           @pointsY.push(i)
+           @pointsX.push(@x)
+           @points.push(new Point(@x,i))
+           i=i+@fireD-2
+       end
+       i=@x-@d/2
+       while i < @x+@d/2
+           @pointsY.push(@y)
+           @pointsX.push(i)
+           @points.push(new Point(i,@y))
+           i=i+@fireD-2
+       end
+      @rot=[]      
+    end
+    
+    def move()
+        @rot=[]
+        @points.each() do |p|
+	     rot=p.rotate(new Point(@x,@y),@angle)
+	     @rot.push(rot)	     
+        end
+        @angle=@angle+@dir.toRadians()
+        if @angle.toDegrees() < 0 || @angle.toDegrees()>360
+            @dir=@dir*-1
+        end
+    end
+    
+    def draw()    
+        move()
+        i=0
+        @rot.each() do |p|
+          if i%2==0
+             setColor(255,140,0,0.9)
+             fillCircle(p.getX(), p.getY(), @fireD, true)
+             setColor(255,0,0)
+             drawCircle(p.getX(), p.getY(), @fireD, true)
+          else
+             setColor(255,69,0,0.9)
+             fillCircle(p.getX(), p.getY(), @fireD, true)
+             setColor(255,0,0)
+             drawCircle(p.getX(), p.getY(), @fireD, true)          
+          end
+          i=i+1
+        end
+        @wall.draw()
+    end
+    
+    def hit(ball)
+        if ball.isValid()
+            @rot.each() do |p|
+                if ball.isValid() && isCircleOverlap(p.getX(), p.getY(), @fireD, ball.getX(), ball.getY(), ball.getDiameter(), true)
+                    ball.setExploding(ball.getX(), ball.getY())
+                end
+            end
+        end
+    end
+    
+end
+
+//////////////////////////////
+
+class Lava < Barrier
+    def new(x,height)
+        @bubbleD=10
+        @x=x
+        @y=$SCREEN_HEIGHT-height
+        @lavaHeight=height
+        @initLavaHeight=height
+        @bubblesX=[]
+        @bubblesY=[]        
+        50.times() do
+            @bubblesX.push(rand(0,$SCREEN_WIDTH-@bubbleD))
+            @bubblesY.push(rand($SCREEN_HEIGHT-@lavaHeight-@bubbleD,$SCREEN_HEIGHT))
+        end        
+        @moving=false
+        @hitY=0        
+    end
+    
+    def reset()
+        if @moving
+            @lavaHeight=@initLavaHeight
+            @y=$SCREEN_HEIGHT-@lavaHeight
+            @bubblesX=[]
+            @bubblesY=[]        
+            50.times() do
+              @bubblesX.push(rand(0,$SCREEN_WIDTH-@bubbleD))
+              @bubblesY.push(rand($SCREEN_HEIGHT-@lavaHeight-@bubbleD,$SCREEN_HEIGHT))
+            end            
+        end
+    end
+    
+    def setMoving(hitY)
+        @moving=true
+        @hitY=hitY
+    end
+
+    def bubble()
+        i=0
+        while i < @bubblesY.size()
+            @bubblesY[i]=@bubblesY[i]-1
+            if @bubblesY[i] <= $SCREEN_HEIGHT-@lavaHeight-@bubbleD
+                @bubblesY[i]=rand($SCREEN_HEIGHT-@lavaHeight,$SCREEN_HEIGHT)
+                @bubblesX[i]=rand(0,$SCREEN_WIDTH-@bubbleD)
+            end
+            i=i+1
+        end
+    end    
+    
+    def move()
+        if @y > @hitY
+          @lavaHeight=@lavaHeight+1
+          @y=$SCREEN_HEIGHT-@lavaHeight
+          if @lavaHeight%@bubbleD==0
+                 5.times() do
+	            @bubblesX.push(rand(0,$SCREEN_WIDTH-@bubbleD))
+	            @bubblesY.push($SCREEN_HEIGHT)
+                 end
+          end
+        end
+    end
+    
+    def draw()
+        setColor(255,0,0)
+        fillRect(0,$SCREEN_HEIGHT-@lavaHeight,$SCREEN_WIDTH,@lavaHeight)        
+        i=$SCREEN_HEIGHT-@lavaHeight
+        setColor(255,140,0,0.4)
+        while i <= $SCREEN_HEIGHT
+            fillRect(0,i,$SCREEN_WIDTH,2)
+            i=i+5
+        end
+        i=0
+        while i < @bubblesX.size()
+            setColor(255,140,0)
+            fillCircle(@bubblesX[i],@bubblesY[i],@bubbleD)
+            setColor(255,0,0)
+            drawCircle(@bubblesX[i],@bubblesY[i],@bubbleD)            
+            i=i+1
+        end
+        bubble()  
+        if @moving
+           move()
+        end
+    end
+    
+    def isFatal()
+        return @hitY >= @y    
+    end
+    
+    def hit(ball)
+        groundHit=false
+        if ball.isValid()
+		if ball.getY()+ball.getDiameter()/2 >= @y
+		    ball.setExploding(ball.getX(), @y-ball.getDiameter()/2)
+		    groundHit=true
+		else
+		    next=ball.getNextPoint()
+		    if next.getY()+ball.getDiameter()/2 >= @y
+			ball.setExploding(next.getX(), @y-ball.getDiameter()/2)
+			groundHit=true
+		    end
+		end        
+        end
+        
+    end
+end
+
+//////////////////////////////
+
+class MovingLava < Lava
+    def new(x, height, hitY)
+        super(x,height)
+        setMoving(hitY)
+    end    
+end
+
+////////////////////////////////////////////////////////////////
+// GAME UTILIES
+////////////////////////////////////////////////////////////////
+
+class Grid
+    def draw()
+        x=0
+        setColor(0,0,255)
+        setFont('Arial',10)
+        50.times() do |i|
+            drawLine(x,0,x,$SCREEN_HEIGHT)
+            fillText(x,x,5)
+            x=x+50
+        end
+        y=0
+        50.times() do |i|
+            drawLine(0,y,$SCREEN_WIDTH,y)
+            fillText(y,5,y)
+            y=y+50
+        end        
+        
+    end
+end
+
+///////////////////////////////
 
 class Point
      def new(x,y)
@@ -1606,43 +1588,16 @@ class Point
      def getY()
          return @y
      end
-
      
-     def rotate(base,rotationAngle)
-     
+     def rotate(base,rotationAngle)     
           x=rotationAngle.cos() * (@x-base.getX()) - rotationAngle.sin() * (@y-base.getY()) + base.getX()
           y=rotationAngle.sin() * (@x-base.getX()) + rotationAngle.cos() * (@y-base.getY()) + base.getY()
-          return new Point(x,y)
-     
+          return new Point(x,y)     
      end     
-     
-     /*def rotate2(base, rotationAngle) //in radians
-     
-        baseX=base.getX()
-        baseY=base.getY()
-        
-        //shift x and y relative to 0,0 origin
-        offsetX = (@x + (baseX * -1))
-        offsetY = (@y + (baseY * -1))
-        //get distance from origin to source point
-        r = (offsetX.pow(2) + offsetY.pow(2)).sqrt()
-        //get current angle of orientation
-        theta = (offsetY / offsetX).atan();
-        // add rotation value to theta to get new angle of orientation
-        offsetTheta = theta + rotationAngle;
-        //calculate new x coord
-        rotateX = r * (offsetTheta).cos()
-        //calculate new y coord
-        rotateY = r * (offsetTheta).sin()
-        //shift new x and y relative to base point
-        rotateX = (rotateX + baseX)
-        rotateY = (rotateY + baseY)
-        return new Point(rotateX, rotateY)
-        
-     end*/
 end
 
-////////////////////////////////////
+///////////////////////////////
+
 class Colour
     def new(r,g,b)
         @r=r
@@ -1664,7 +1619,8 @@ class Colour
     end
 end
 
-/////////////////////////////
+///////////////////////////////
+
 class Dialog
 
     def new()
@@ -1740,6 +1696,8 @@ class Dialog
         return @ok
     end
 
-end    
-////////////////////////////////////
+end
 
+////////////////////////////////////////////////////////////////
+// END OF GAME
+////////////////////////////////////////////////////////////////
