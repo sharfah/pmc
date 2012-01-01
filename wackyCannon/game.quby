@@ -1,17 +1,19 @@
 /**
  * Wacky Cannon
- * @author sharfah 28/8/2011
+ * @author sharfah 1/1/2012
+ * Sound effects from: http://gamethemesongs.com, http://soundbible.com
  */
 
 $SCREEN_HEIGHT = getScreenHeight()
 $SCREEN_WIDTH = getScreenWidth()
-$DEBUG=false
-$CHEAT=false
 
 // Game state transition:
 // TITLE -> NEW_GAME -> IN_GAME -> GAME_OVER
+$TAEHC=false 
 $GAME_STATE=:TITLE
+$AUDIO = new SoundManager()
 game = new Game()
+
 
 ////////////////////////////////////////////////////////////////
 // MAIN LOOP
@@ -63,60 +65,75 @@ class Game
                 $GAME_STATE=:GAME_OVER
             end
             
-            if getControls().isKeyPressed(:d)
-	        $DEBUG=!$DEBUG
-	    else if getControls().isKeyPressed(:c)
-                $CHEAT=!$CHEAT
+            if getControls().isKeyPressed(:c)
+                $TAEHC=!$TAEHC
             else if getControls().isKeyPressed(:r)
                 currentLevel.reset()
-            else if getControls().isKeyPressed(:n)
-               @currentLevelIdx=@currentLevelIdx+1   
             end
-            
-            if $DEBUG
-               new Grid().draw()
-            end
+
         end
     end
     
     def drawContinueDialog(i)
         d = new Dialog()
-        d.draw("Level "+i+" Complete", "","CONTINUE>>>",false)
+        d.draw("Level "+i+" Complete", "CONTINUE",false)
         if d.isOk()
             @currentLevelIdx=@currentLevelIdx+1
+            if @currentLevelIdx%5==0
+                $AUDIO.next()
+            end
         end
     end
     
     def drawRetryDialog(i)
         d = new Dialog()
-        d.draw("Level "+i+" Failed", "","<<<RETRY",true)
+        d.draw("Level "+i+" Failed", "RETRY",true)
         if d.isOk()
             @levels[@currentLevelIdx].reset()
         end        
     end
     
+    def footer()
+        setFont('Arial', 12)
+        setColor(107,142,35)
+        fillText("Wacky Cannon (by sharfah, 01.01.2012)", 390,$SCREEN_HEIGHT-20)
+    end
+    
     def drawGameOver()
+        $AUDIO.playIntro()
         @scene.draw()
         @ground.draw()
         @cannon.draw()
-        setFont( 'Arial', 40 )
+        setFont( 'Comic Sans MS', 40 )
         size=45
         setColor(0,0,128)
         fillText("You Won!",7*size,2*size)
         setColor(34,139,34)
         setFont('Arial', 20)
         fillText("You completed all "+ @levels.size() +" levels.", 7*size,2*size+50)
+        
         setColor(255,0,0)
         setFont('Arial', 20, 'bold')
-        fillText("Click to Play Again", 7*size, 6*size)
-         
+        fillText("Click to Play Again", 7*size, 5*size)
+        setColor(0,0,255)
+        setFont('Arial', 14, 'italic')
+        fillText("(or fork this project and create\nyour own levels. It's easy!)", 7*size,5.5*size)
+        
+        
+        setColor(0,0,0)
+	setFont('Arial', 10)
+	fillText("Sound credits go to:\nhttp://gamethemesongs.com and http://soundbible.com", 7*size,7*size)
+        
+        footer()
+        
         controls = getControls()
         if controls.isLeftClick()
            $GAME_STATE=:TITLE
         end        
      end
     
-    def drawTitle()        
+    def drawTitle() 
+        $AUDIO.playIntro()
         @scene.draw()
         @ground.draw()
         @cannon.draw()
@@ -126,6 +143,7 @@ class Game
         size=45
         
         setColor(0,0,128)
+        setFont( 'Comic Sans MS', 50 )
         fillText("WACKY",7*size,2*size)
         fillText("CANNON",7*size,2*size+55)
     
@@ -137,10 +155,12 @@ class Game
         setColor(255,0,0)
         setFont( 'Arial', 20, 'bold' )
         fillText("Click to Start",7*size,6*size+20)
+        footer()
       
         controls = getControls()
         if controls.isLeftClick()
            $GAME_STATE=:NEW_GAME
+           $AUDIO.next()
         end   
     end
 end
@@ -275,7 +295,7 @@ class Level
     
     def listenForFire()
         if getControls().isLeftClick()
-           if getRemainingBalls() > 0
+           if @levelState==:IN_LEVEL && getRemainingBalls() > 0
                @numFired=@numFired+1
                @cannon.fire()
            end
@@ -486,6 +506,65 @@ class LevelBuilder
     end
 end
 
+////////////////////////////////////////////////////////////////
+// SOUND MANAGER
+////////////////////////////////////////////////////////////////
+
+class SoundManager
+
+    //load all sounds up-front
+    def new()
+        @fire=new Sound("fire.mp3")
+        @hit=new Sound("hit.mp3")
+        @intro=new Sound("intro.mp3")
+        @intro.setRepeating(true)
+        
+        @list=[]
+        @list.push(new Sound("zone1.mp3"))
+        @list.push(new Sound("zone2.mp3"))
+        @list.push(new Sound("zone3.mp3"))
+        @currentZone=-1
+    end
+    
+    
+    def next()
+        if @currentZone != -1 
+            @list[@currentZone].stop()
+        end
+        @currentZone = @currentZone + 1
+        currSound=@list[@currentZone]
+        currSound.setRepeating(true)
+        if @intro.isPlaying()
+           @intro.stop()
+        end
+        @list[@currentZone].play()
+    end
+    
+    def playFire()
+        play(@fire)
+    end
+    
+    def playHit()
+        play(@hit)
+    end
+    
+    def playIntro()
+        if @currentZone != -1 && @list[@currentZone].isPlaying()
+            @list[@currentZone].stop()
+            @currentZone=-1
+        end
+        
+        if ! @intro.isPlaying()
+             play(@intro)             
+        end  
+        
+    end
+      
+    def play(sound)
+        sound.play()
+    end
+    
+end
 
 ////////////////////////////////////////////////////////////////
 // THE CANNON
@@ -582,8 +661,8 @@ class Cannon
             ball = new Ball(rotated.getX(),rotated.getY(),@angle,@velocity)
             @balls.push(ball)
             @fired=false
-        else if $CHEAT
-            drawCheatLine(rotated.getX(),rotated.getY())
+        else if $TAEHC
+            drawHelperLine(rotated.getX(),rotated.getY())
         end        
     end
     
@@ -599,9 +678,7 @@ class Cannon
         move()
     end
     
-    def getBalls()
-        return @balls
-    end
+    get (balls, velocity)
     
     def changeAngle(dx, dy)        
         //change the angle
@@ -653,7 +730,7 @@ class Cannon
     end
     
     
-    def drawCheatLine(xi,yi)
+    def drawHelperLine(xi,yi)
         
         setColor(0,0,0,0.2)
 	
@@ -672,12 +749,10 @@ class Cannon
     def getAngle()
         return (-1*@angle).toDegrees()
     end
-    
-    def getVelocity()
-        return @velocity
-    end
+
     
     def fire()
+        $AUDIO.playFire()
         @fired=true
     end
     
@@ -717,6 +792,8 @@ class Ball
 	        @y=@yi-vy*@time+4.9*@time*@time
         	@time=@time+@timestep
         	fillCircle(@x,@y,@diameter,true) 
+        	setColor(105,105,105)
+        	fillCircle(@x,@y,@diameter*3/4,true) 
         	if @x > $SCREEN_WIDTH || @x < 0 || @y > $SCREEN_HEIGHT
         	    invalidate()
         	end
@@ -732,21 +809,8 @@ class Ball
 	vy=@v*@angle.sin()
 	return new Point (@xi+vx*@time, @yi-vy*@time+4.9*@time*@time)
     end
-    
-    def getNextY()
-    end
-    
-    def getX()
-        return @x
-    end
-    
-    def getY()
-        return @y
-    end
-    
-    def getDiameter()
-        return @diameter
-    end
+
+    get (x, y, diameter)
     
     def isMoving()
         return @moving
@@ -840,24 +904,11 @@ class Target
     end
     
     def destroy()
+        $AUDIO.playHit()
         @destroyed=true
     end
     
-    def getX()
-        return @x
-    end
-    
-    def getY()
-        return @y
-    end
-    
-    def getWidth()
-        return @width
-    end
-    
-    def getHeight()
-        return @height
-    end
+    get(x, y, width, height)
     
     def hit(ball)
        if isValid() && ball.isValid() && ball.getX()+ball.getDiameter()/2 >= @x && ball.getX()-ball.getDiameter()/2 <= @x+@width
@@ -959,11 +1010,10 @@ class FieldScene
 
     def drawMountains()
         setColor(107,142,35)
-        points=[$SCREEN_WIDTH,250, 300,$SCREEN_HEIGHT-@groundHeight, $SCREEN_WIDTH,$SCREEN_HEIGHT-@groundHeight]
-        fillPolygon(points)
-        points=[0,150, 550,$SCREEN_HEIGHT-@groundHeight,0,$SCREEN_HEIGHT-@groundHeight]
+        fillSegment( $SCREEN_WIDTH+150, $SCREEN_HEIGHT+580, 750, 180.toRadians(), 270.toRadians(), true )
         setColor(107,142,35,0.7)
-        fillPolygon(points)
+        fillSegment( -100, $SCREEN_HEIGHT+500, 750, 270.toRadians(), 0, true )
+
     end    
 
     def draw()
@@ -1553,41 +1603,13 @@ end
 // GAME UTILIES
 ////////////////////////////////////////////////////////////////
 
-class Grid
-    def draw()
-        x=0
-        setColor(0,0,255)
-        setFont('Arial',10)
-        50.times() do |i|
-            drawLine(x,0,x,$SCREEN_HEIGHT)
-            fillText(x,x,5)
-            x=x+50
-        end
-        y=0
-        50.times() do |i|
-            drawLine(0,y,$SCREEN_WIDTH,y)
-            fillText(y,5,y)
-            y=y+50
-        end        
-        
-    end
-end
-
-///////////////////////////////
-
 class Point
      def new(x,y)
          @x=x
          @y=y
      end
      
-     def getX()
-         return @x
-     end
-     
-     def getY()
-         return @y
-     end
+     get(x, y)
      
      def rotate(base,rotationAngle)     
           x=rotationAngle.cos() * (@x-base.getX()) - rotationAngle.sin() * (@y-base.getY()) + base.getX()
@@ -1604,19 +1626,7 @@ class Colour
         @g=g
         @b=b
     end
-    
-    def getR()
-        return @r
-    end
-    def getG()
-        return @g
-    end
-    def getB()
-        return @b
-    end    
-    def equals(another)
-        return @r==another.getR() && @b==another.getB() && @g==another.getG()
-    end
+    get(r, g, b)
 end
 
 ///////////////////////////////
@@ -1625,58 +1635,50 @@ class Dialog
 
     def new()
         @ok=false
+        @height=90
+        @width=250
+        @darkBlue=new Colour(0, 0, 128)
+        @lightBlue=new Colour(72,209,204) 
+        @red=new Colour(255,0,0)
+        @pink=new Colour(255,160,122)     
+        @alpha=0.9
     end
     
-    def draw(header, message, actionText, isError)
-        fill(0,0,0,0.6)
-        height=150
-        width=300
-        
-        darkBlue=new Colour(0, 0, 128)
-        lightBlue=new Colour(72,209,204) 
-        red=new Colour(255,0,0)
-        pink=new Colour(255,160,122)
-        
-        darkColour=darkBlue
-        lightColour=lightBlue
-        hoverColour=red
+    def draw(message, actionText, isError)
+
+        darkColour=@darkBlue
+        lightColour=@lightBlue
+        hoverColour=@red
         if isError
-           darkColour=red
-           lightColour=pink
-           hoverColour=darkBlue
+           darkColour=@red
+           lightColour=@pink
+           hoverColour=@darkBlue
         end
         
+        //create dialog box
+        setColor(lightColour.getR(), lightColour.getG(), lightColour.getB(),@alpha)
+        fillRect(($SCREEN_WIDTH)/2,($SCREEN_HEIGHT)/2,@width,@height,true)
+        setColor(0,0,0)
+        drawRect(($SCREEN_WIDTH)/2,($SCREEN_HEIGHT)/2,@width,@height,true)
+        
+        //draw the message
+        fontsize=22
+        setFont('Arial', fontsize, 'bold' )
+        y=($SCREEN_HEIGHT)/2 -@height/2 + fontsize
         setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())
-        fillRoundedRect(($SCREEN_WIDTH)/2,($SCREEN_HEIGHT)/2,width+5,height+5,20,true)        
+        fillText(message, ($SCREEN_WIDTH)/2, y, true)
+
+        //draw the button
+        butHeight=@height/3
+        butWidth=@width/2
+        butY=butHeight/2+($SCREEN_HEIGHT)/2
         
-        setColor(lightColour.getR(), lightColour.getG(), lightColour.getB())
-        fillRoundedRect(($SCREEN_WIDTH)/2,($SCREEN_HEIGHT)/2,width,height,20,true) 
-        
-        setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())
-        fontsize=25
-        setFont( 'Arial', fontsize, 'bold' )
-        y=($SCREEN_HEIGHT)/2 -height/2 + fontsize
-        
-        fillText(header, ($SCREEN_WIDTH)/2, y, true)
-        
-        y=y+20
-        drawLine(($SCREEN_WIDTH-width)/2,y,($SCREEN_WIDTH-width)/2+width ,y,3);
-        
-        fontsize=20
-        setFont( 'Arial', fontsize )
-        y=y+fontsize+5
-        fillText(message, ($SCREEN_WIDTH)/2,y, true)
-        
-        y=($SCREEN_HEIGHT)/2+height/2-fontsize-10
-        setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())        
-        butWidth=150
-        butHeight=fontsize+20
-                
+        //detect mouse and fill the button
         controls=getControls()
         mouseX=controls.getMouseX()
         mouseY=controls.getMouseY()
         
-        if isRectOverlap( ($SCREEN_WIDTH)/2,y, butWidth,butHeight, mouseX, mouseY, 1,1, true )
+        if isRectOverlap( ($SCREEN_WIDTH)/2,butY, butWidth,butHeight, mouseX, mouseY, 1,1, true )
             if(controls.isLeftClick())
                 @ok=true
             end
@@ -1684,12 +1686,16 @@ class Dialog
         else
             setColor(darkColour.getR(), darkColour.getG(), darkColour.getB())
         end
+        fillRect(($SCREEN_WIDTH)/2,butY,butWidth,butHeight,true)
+        setColor(0,0,0)
+        drawRect(($SCREEN_WIDTH)/2,butY,butWidth,butHeight,true)
         
-        fillRoundedRect(($SCREEN_WIDTH)/2,y,butWidth,butHeight,20,true)
-        
+        //draw the button label
+        fontsize=18
+        setFont('Arial', fontsize, 'bold' )
         setColor(lightColour.getR(), lightColour.getG(), lightColour.getB())
-        setFont( 'Arial', fontsize, 'bold' )
-        fillText(actionText, ($SCREEN_WIDTH)/2, y, true)
+        fillText(actionText, ($SCREEN_WIDTH)/2, butY, true)
+        
     end
     
     def isOk()
